@@ -251,7 +251,6 @@
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(44,26,14,0.65);
-    backdrop-filter: blur(3px);
     z-index: 200;
     display: flex; align-items: flex-start; justify-content: center;
     padding: 1rem;
@@ -259,7 +258,7 @@
     opacity: 0; pointer-events: none;
     transition: opacity 0.25s;
   }
-  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; backdrop-filter: blur(3px); }
   .modal {
     background: var(--cream);
     border-radius: 14px;
@@ -1405,7 +1404,12 @@ CRITICAL RULES:
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.imageData = 'data:image/jpeg;base64,' + photoBase64;
     document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
-    setTimeout(() => { closeModal('photoModal'); openAddRecipe(parsed); }, 800);
+    setTimeout(() => {
+      document.getElementById('photoPreview').src = '';
+      photoBase64 = null;
+      closeModal('photoModal');
+      openAddRecipe(parsed);
+    }, 800);
   } catch (e) {
     document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}</div>`;
   } finally {
