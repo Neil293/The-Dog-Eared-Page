@@ -577,6 +577,7 @@
     <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
     <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
     <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
+    <button class="icon-btn" title="Import from URL" onclick="openUrlImport()">🔗</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
   </div>
 </header>
@@ -763,6 +764,30 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('pasteModal')">Cancel</button>
       <button class="btn btn-green" id="btnAnalysePaste" style="display:none" onclick="analysePaste()">🤖 Analyse with AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ URL IMPORT MODAL ═══════════════════ -->
+<div class="modal-overlay" id="urlModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🔗 Import from URL</h2>
+      <button class="icon-btn" onclick="closeModal('urlModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-family:var(--font-hand);color:var(--ink-faint);margin-bottom:1rem;font-size:0.95rem">
+        Paste a link to any recipe page. Claude AI will read it and convert all measurements to grams automatically.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Recipe URL</label>
+        <input type="url" class="form-input" id="urlInput" placeholder="https://www.example.com/recipes/chicken-soup" oninput="document.getElementById('btnAnalyseUrl').style.display=this.value.trim()?'':'none'">
+      </div>
+      <div id="urlStatus" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('urlModal')">Cancel</button>
+      <button class="btn btn-green" id="btnAnalyseUrl" style="display:none" onclick="analyseUrl()">🤖 Fetch &amp; Analyse</button>
     </div>
   </div>
 </div>
@@ -1331,6 +1356,125 @@ CRITICAL RULES:
     document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ Error: ${esc(e.message)}<br>Check your API key in Settings.</div>`;
   } finally {
     document.getElementById('btnAnalyse').disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  URL IMPORT
+// ═══════════════════════════════════════════════════════
+function openUrlImport() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('urlStatus').style.display = 'none';
+  document.getElementById('btnAnalyseUrl').style.display = 'none';
+  openModal('urlModal');
+}
+
+async function analyseUrl() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  const apiKey = settings.apiKey || '';
+  if (!apiKey) {
+    alert('Please add your Anthropic API key in Settings first.');
+    return;
+  }
+
+  const statusEl = document.getElementById('urlStatus');
+  const btn = document.getElementById('btnAnalyseUrl');
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Fetching page…</div>`;
+  btn.disabled = true;
+
+  try {
+    const proxyResp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    if (!proxyResp.ok) throw new Error('Could not fetch the page. Check the URL and try again.');
+    const proxyData = await proxyResp.json();
+    if (!proxyData.contents) throw new Error('Page returned no content.');
+
+    // Strip tags and collapse whitespace, keep ~20 000 chars
+    const text = proxyData.contents
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 20000);
+
+    statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Reading recipe and converting measurements…</div>`;
+
+    const prompt = `You are a recipe data extractor. The text below is the visible content of a recipe webpage.
+Extract all recipe information and return ONLY a JSON object (no markdown, no explanation) with this exact structure:
+{
+  "name": "Recipe name",
+  "origin": "${esc(url)}",
+  "prepTime": 15,
+  "cookTime": 30,
+  "serves": 4,
+  "emoji": "🍖",
+  "ingTags": ["Beef", "Vegetables"],
+  "methodTags": ["Slow Cook"],
+  "ingredients": [
+    {"name": "plain flour", "amount": 250},
+    {"name": "butter", "amount": 120}
+  ],
+  "steps": [
+    "Preheat oven to 180°C.",
+    "Mix flour and butter together."
+  ],
+  "notes": "Any tips or notes from the recipe."
+}
+
+CRITICAL RULES:
+- ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
+- For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
+- For flour: 1 cup = 125g, 1 tbsp = 8g
+- For sugar: 1 cup = 200g, 1 tbsp = 12g
+- For butter: 1 cup = 225g, 1 tbsp = 14g
+- For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
+- ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
+- methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
+- prepTime and cookTime are integers in minutes, or null if not stated
+- serves is an integer or null
+- origin must always be the exact source URL provided above
+- Return ONLY the JSON, nothing else.
+
+PAGE CONTENT:
+${text}`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || 'API error');
+    }
+
+    const data = await resp.json();
+    const raw = data.content.map(b => b.text || '').join('').trim();
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    parsed.origin = url;
+
+    statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
+    setTimeout(() => {
+      closeModal('urlModal');
+      openAddRecipe(parsed);
+    }, 800);
+
+  } catch (e) {
+    statusEl.innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
   }
 }
 
