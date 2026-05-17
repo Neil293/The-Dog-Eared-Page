@@ -1,6 +1,6 @@
 # The Recipe Book
 
-**[→ Open live app](https://neil293.github.io/the-dog-eared-page/)**
+**[→ Open live app](https://neil293.github.io/The-Dog-Eared-Page/)**
 
 A personal recipe PWA — single-file, no build tools, installable on mobile.
 
