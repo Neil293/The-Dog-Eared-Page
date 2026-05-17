@@ -589,6 +589,16 @@
     font-size: 0.9rem;
     color: var(--ink-faint);
   }
+  .img-search-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem;
+  }
+  .img-search-thumb {
+    aspect-ratio: 1; overflow: hidden; border-radius: 8px; cursor: pointer;
+    border: 2.5px solid transparent; transition: border-color 0.15s, transform 0.15s;
+    background: var(--paper-darker);
+  }
+  .img-search-thumb:hover { border-color: var(--accent); transform: scale(1.03); }
+  .img-search-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 </style>
 </head>
 <body>
@@ -745,7 +755,10 @@
           <img id="fPhotoImg" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;display:block">
           <button type="button" onclick="removeRecipePhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.9rem;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
         </div>
-        <button type="button" class="btn btn-ghost btn-sm" id="fPhotoBtn" onclick="document.getElementById('fPhotoInput').click()">📷 Add photo</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="fPhotoBtn" onclick="document.getElementById('fPhotoInput').click()">📷 Add photo</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="fImgSearchBtn" onclick="openImgSearch()">🔍 Search web</button>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -890,6 +903,27 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Cancel</button>
       <button class="btn btn-accent" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ IMAGE SEARCH MODAL ═══════════════════ -->
+<div class="modal-overlay" id="imgSearchModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <h2>🔍 Search images</h2>
+      <button class="icon-btn" onclick="closeModal('imgSearchModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+        <input type="text" class="form-input" id="imgSearchInput" placeholder="e.g. beef steak" style="flex:1" onkeydown="if(event.key==='Enter')searchImages()">
+        <button class="btn btn-accent btn-sm" onclick="searchImages()">Search</button>
+      </div>
+      <div id="imgSearchStatus" style="color:var(--ink-faint);font-size:0.85rem;font-family:var(--font-hand);margin-bottom:0.5rem;min-height:1.2em"></div>
+      <div class="img-search-grid" id="imgSearchResults"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('imgSearchModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -1226,15 +1260,15 @@ function compressImage(file, maxWidth = 900, quality = 0.72) {
 function setRecipePhotoPreview(dataUrl) {
   window._pendingImageData = dataUrl || null;
   const prev = document.getElementById('fPhotoPreview');
-  const btn = document.getElementById('fPhotoBtn');
+  const btns = [document.getElementById('fPhotoBtn'), document.getElementById('fImgSearchBtn')];
   if (dataUrl) {
     document.getElementById('fPhotoImg').src = dataUrl;
     prev.style.display = '';
-    btn.style.display = 'none';
+    btns.forEach(b => b && (b.style.display = 'none'));
   } else {
     document.getElementById('fPhotoImg').src = '';
     prev.style.display = 'none';
-    btn.style.display = '';
+    btns.forEach(b => b && (b.style.display = ''));
   }
 }
 
@@ -1917,6 +1951,68 @@ function getSampleRecipes() {
     notes: 'The secret is simmering slowly — never boiling hard.',
     fav: false, updatedAt: Date.now()
   }];
+}
+
+// ═══════════════════════════════════════════════════════
+//  IMAGE SEARCH
+// ═══════════════════════════════════════════════════════
+function openImgSearch() {
+  const name = document.getElementById('fName').value.trim();
+  document.getElementById('imgSearchInput').value = name;
+  document.getElementById('imgSearchResults').innerHTML = '';
+  document.getElementById('imgSearchStatus').textContent = '';
+  openModal('imgSearchModal');
+  if (name) searchImages();
+}
+
+function searchImages() {
+  const q = document.getElementById('imgSearchInput').value.trim();
+  if (!q) return;
+  const grid = document.getElementById('imgSearchResults');
+  const statusEl = document.getElementById('imgSearchStatus');
+  const encoded = encodeURIComponent(q + ' food');
+  const seed = Date.now();
+  grid.innerHTML = Array.from({length: 9}, (_, i) => {
+    const url = `https://source.unsplash.com/featured/400x400/?${encoded}&sig=${seed + i}`;
+    return `<div class="img-search-thumb" onclick="selectSearchImage(this,'${url}')"><img src="${url}" loading="lazy" onerror="this.parentElement.remove()"></div>`;
+  }).join('');
+  statusEl.textContent = 'Tap an image to use it · Photos via Unsplash';
+}
+
+async function selectSearchImage(el, url) {
+  const statusEl = document.getElementById('imgSearchStatus');
+  statusEl.innerHTML = `<span class="spinner"></span> Loading…`;
+  document.querySelectorAll('.img-search-thumb').forEach(t => t.style.opacity = '0.5');
+  el.style.opacity = '1';
+  try {
+    const resp = await fetch(url, { redirect: 'follow' });
+    if (!resp.ok) throw new Error();
+    const blob = await resp.blob();
+    const dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+    const compressed = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 900 / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        res(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = rej;
+      img.src = dataUrl;
+    });
+    setRecipePhotoPreview(compressed);
+    closeModal('imgSearchModal');
+  } catch {
+    document.querySelectorAll('.img-search-thumb').forEach(t => t.style.opacity = '1');
+    statusEl.textContent = '⚠ Could not load that image — try another.';
+  }
 }
 
 // ═══════════════════════════════════════════════════════
