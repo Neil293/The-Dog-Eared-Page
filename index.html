@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#5c3d1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<title>The Recipe Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5efe6;
+    --paper-dark: #ede3d4;
+    --paper-darker: #e0d0b8;
+    --ink: #2c1a0e;
+    --ink-light: #5c3d1e;
+    --ink-faint: #9a7a5a;
+    --accent: #b85c38;
+    --accent-dark: #8c3e20;
+    --accent-light: #d4845a;
+    --green: #5a7a3a;
+    --green-light: #7a9a5a;
+    --cream: #faf6ef;
+    --shadow: rgba(44,26,14,0.15);
+    --shadow-deep: rgba(44,26,14,0.3);
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'Lora', Georgia, serif;
+    --font-hand: 'Caveat', cursive;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  }
+
+  /* ─── TOP BAR ─── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px var(--shadow-deep);
+    min-height: 56px;
+  }
+  .header-title {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-style: italic;
+    letter-spacing: 0.02em;
+    color: var(--paper-dark);
+  }
+  .header-title span { color: var(--accent-light); }
+  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .icon-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--paper-dark); padding: 6px; border-radius: 6px;
+    font-size: 1.2rem; transition: background 0.2s, color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #888; display: inline-block; margin-left: 4px;
+    transition: background 0.3s;
+  }
+  .sync-dot.ok { background: var(--green-light); }
+  .sync-dot.syncing { background: var(--accent-light); animation: pulse 1s infinite; }
+  .sync-dot.err { background: #c0392b; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ─── NAV TABS ─── */
+  nav {
+    background: var(--ink-light);
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-tab {
+    padding: 10px 18px;
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    color: var(--paper-dark);
+    cursor: pointer;
+    border: none;
+    background: none;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    opacity: 0.75;
+  }
+  .nav-tab.active {
+    color: #fff;
+    border-bottom-color: var(--accent-light);
+    opacity: 1;
+  }
+  .nav-tab:hover { opacity: 1; }
+
+  /* ─── MAIN LAYOUT ─── */
+  main { max-width: 960px; margin: 0 auto; padding: 1rem; }
+
+  /* ─── SEARCH & FILTERS ─── */
+  .search-bar {
+    display: flex; gap: 0.5rem; margin-bottom: 1rem;
+  }
+  .search-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 2px solid var(--paper-darker);
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    background: var(--cream);
+    color: var(--ink);
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { outline: none; border-color: var(--accent); }
+  .search-input::placeholder { color: var(--ink-faint); font-style: italic; }
+
+  .filter-section { margin-bottom: 1rem; }
+  .filter-label {
+    font-family: var(--font-hand);
+    font-size: 0.9rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+  .tags-row {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+  }
+  .filter-tag {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: var(--font-hand);
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1.5px solid var(--paper-darker);
+    background: var(--cream);
+    color: var(--ink-light);
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .filter-tag:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-tag.active { background: var(--ink-light); color: var(--paper); border-color: var(--ink-light); }
+  .filter-tag.method.active { background: var(--green); border-color: var(--green); }
+
+  /* ─── RECIPE GRID ─── */
+  .recipe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.1rem;
+  }
+
+  .recipe-card {
+    background: var(--cream);
+    border-radius: 10px;
+    border: 1.5px solid var(--paper-darker);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    box-shadow: 2px 3px 8px var(--shadow);
+    position: relative;
+  }
+  .recipe-card:hover { transform: translateY(-3px); box-shadow: 4px 8px 20px var(--shadow); }
+
+  .card-img {
+    width: 100%; height: 160px; object-fit: cover;
+    background: var(--paper-darker);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem;
+  }
+  .card-img img { width: 100%; height: 100%; object-fit: cover; }
+  .card-img-placeholder { font-size: 3rem; }
+
+  .card-body { padding: 0.85rem 1rem 1rem; }
+  .card-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .card-times {
+    font-family: var(--font-hand);
+    font-size: 0.88rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.5rem;
+    display: flex; gap: 0.8rem;
+  }
+  .card-times span::before { margin-right: 3px; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tag-pill {
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-family: var(--font-hand);
+    font-size: 0.8rem;
+    background: var(--paper-dark);
+    color: var(--ink-light);
+  }
+  .tag-pill.method { background: #e8f0e0; color: var(--green); }
+
+  .empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--ink-faint);
+  }
+  .empty-state .big { font-size: 4rem; margin-bottom: 1rem; }
+  .empty-state p { font-family: var(--font-hand); font-size: 1.2rem; }
+
+  /* ─── MODAL BASE ─── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(44,26,14,0.65);
+    backdrop-filter: blur(3px);
+    z-index: 200;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--cream);
+    border-radius: 14px;
+    width: 100%; max-width: 640px;
+    margin: auto;
+    box-shadow: 0 20px 60px var(--shadow-deep);
+    overflow: hidden;
+    transform: translateY(20px);
+    transition: transform 0.25s;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 1rem 1.2rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.2rem;
+    color: var(--paper-dark);
+  }
+  .modal-body { padding: 1.2rem; }
+  .modal-footer {
+    padding: 0.8rem 1.2rem;
+    background: var(--paper-dark);
+    display: flex; justify-content: flex-end; gap: 0.6rem;
+  }
+
+  /* ─── FORM ELEMENTS ─── */
+  .form-group { margin-bottom: 1rem; }
+  .form-label {
+    display: block;
+    font-family: var(--font-hand);
+    font-size: 0.95rem;
+    color: var(--ink-light);
+    margin-bottom: 0.35rem;
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--paper-darker);
+    border-radius: 7px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    background: var(--paper);
+    color: var(--ink);
+    transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8rem; }
+
+  /* Ingredient rows */
+  .ingredients-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .ingredient-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 40px;
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .btn-remove-ing {
+    background: none; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 1.1rem; padding: 4px;
+    border-radius: 4px; transition: color 0.2s;
+  }
+  .btn-remove-ing:hover { color: var(--accent); }
+
+  /* Steps list */
+  .steps-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .step-row {
+    display: grid;
+    grid-template-columns: 24px 1fr 40px;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  .step-num {
+    font-family: var(--font-hand);
+    font-size: 1.1rem;
+    color: var(--accent);
+    line-height: 2.2;
+    text-align: center;
+  }
+
+  /* Tags checkboxes */
+  .tags-check-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .tag-check-label {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    border-radius: 16px;
+    border: 1.5px solid var(--paper-darker);
+    cursor: pointer;
+    font-family: var(--font-hand);
+    font-size: 0.88rem;
+    color: var(--ink-light);
+    background: var(--paper);
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .tag-check-label input { display: none; }
+  .tag-check-label:has(input:checked) {
+    background: var(--ink-light);
+    color: var(--paper);
+    border-color: var(--ink-light);
+  }
+  .tag-check-label.method:has(input:checked) {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    padding: 9px 20px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--ink-light); color: var(--paper); }
+  .btn-primary:hover { background: var(--ink); }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-ghost { background: transparent; color: var(--ink-light); border: 1.5px solid var(--paper-darker); }
+  .btn-ghost:hover { border-color: var(--ink-light); }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #4a6a2a; }
+  .btn-sm { padding: 5px 12px; font-size: 0.88rem; }
+  .btn-add-row {
+    background: none; border: 1.5px dashed var(--paper-darker);
+    width: 100%; padding: 7px; border-radius: 7px;
+    font-family: var(--font-hand); font-size: 0.9rem;
+    color: var(--ink-faint); cursor: pointer; transition: all 0.2s;
+  }
+  .btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── RECIPE VIEW MODAL ─── */
+  .recipe-view-header {
+    background: var(--ink);
+    min-height: 180px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .recipe-view-header img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0.45;
+  }
+  .recipe-view-header-emoji {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 5rem; opacity: 0.2;
+  }
+  .recipe-view-meta { position: relative; z-index: 1; }
+  .recipe-view-title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-style: italic;
+    color: var(--paper);
+    line-height: 1.2;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+  .recipe-view-times {
+    display: flex; gap: 1rem;
+    font-family: var(--font-hand);
+    font-size: 0.95rem;
+    color: var(--paper-dark);
+  }
+  .recipe-view-body { padding: 1.2rem; }
+  .recipe-section-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink-light);
+    border-bottom: 1.5px solid var(--paper-darker);
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.7rem;
+    margin-top: 1rem;
+  }
+  .ingredient-view-row {
+    display: flex; justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dotted var(--paper-darker);
+    font-size: 0.93rem;
+  }
+  .ingredient-view-row .ing-name { color: var(--ink); }
+  .ingredient-view-row .ing-amount {
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .step-view {
+    display: flex; gap: 0.8rem;
+    margin-bottom: 0.8rem;
+    align-items: flex-start;
+  }
+  .step-view-num {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-style: italic;
+    color: var(--accent);
+    min-width: 28px;
+    line-height: 1.3;
+  }
+  .step-view-text { font-size: 0.93rem; line-height: 1.6; padding-top: 3px; }
+  .recipe-notes {
+    background: var(--paper-dark);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--ink-light);
+    margin-top: 0.5rem;
+  }
+  .recipe-notes::before {
+    content: '📝 ';
+  }
+
+  /* ─── PHOTO IMPORT ─── */
+  .photo-drop-zone {
+    border: 2px dashed var(--paper-darker);
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--paper);
+  }
+  .photo-drop-zone:hover, .photo-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: #fdf5ee;
+  }
+  .photo-drop-zone .big-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+  .photo-drop-zone p { font-family: var(--font-hand); font-size: 1rem; color: var(--ink-faint); }
+  .photo-preview { width: 100%; border-radius: 8px; margin-bottom: 1rem; max-height: 260px; object-fit: cover; }
+  .ai-status {
+    text-align: center;
+    padding: 1rem;
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    color: var(--ink-faint);
+  }
+  .spinner {
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 3px solid var(--paper-darker);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── SETTINGS ─── */
+  .settings-section-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink-light);
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1.5px solid var(--paper-darker);
+  }
+  .settings-block { margin-bottom: 1.5rem; }
+  .settings-hint {
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-top: 0.25rem;
+  }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed;
+    bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    z-index: 9999;
+    transition: transform 0.3s;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px var(--shadow-deep);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 520px) {
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .recipe-grid { grid-template-columns: 1fr 1fr; }
+    .header-title { font-size: 1.1rem; }
+  }
+  @media (max-width: 360px) {
+    .recipe-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Divider */
+  .or-divider {
+    display: flex; align-items: center; gap: 0.8rem;
+    color: var(--ink-faint); font-family: var(--font-hand); margin: 0.8rem 0;
+  }
+  .or-divider::before, .or-divider::after {
+    content: ''; flex: 1; border-top: 1px solid var(--paper-darker);
+  }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .section-count {
+    font-family: var(--font-hand);
+    font-size: 0.9rem;
+    color: var(--ink-faint);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header>
+  <div class="header-title">🍳 <span>The</span> Recipe Book</div>
+  <div class="header-actions">
+    <span title="Firebase sync status">
+      <span class="sync-dot" id="syncDot"></span>
+    </span>
+    <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
+    <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
+    <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
+  </div>
+</header>
+
+<!-- ═══════════════════ NAV TABS ═══════════════════ -->
+<nav id="navTabs">
+  <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
+  <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
+</nav>
+
+<!-- ═══════════════════ MAIN ═══════════════════ -->
+<main>
+  <!-- Search -->
+  <div class="search-bar" style="margin-top:1rem">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search recipes, ingredients…" oninput="renderGrid()">
+  </div>
+
+  <!-- Ingredient filters -->
+  <div class="filter-section">
+    <span class="filter-label">🥩 By ingredient</span>
+    <div class="tags-row" id="ingFilterRow"></div>
+  </div>
+
+  <!-- Method filters -->
+  <div class="filter-section">
+    <span class="filter-label">🍲 By method</span>
+    <div class="tags-row" id="methodFilterRow"></div>
+  </div>
+
+  <!-- Grid -->
+  <div class="section-header">
+    <div></div>
+    <span class="section-count" id="recipeCount"></span>
+  </div>
+  <div class="recipe-grid" id="recipeGrid"></div>
+</main>
+
+<!-- ═══════════════════ RECIPE VIEW MODAL ═══════════════════ -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal" style="max-width:680px">
+    <div class="recipe-view-header" id="viewHeader">
+      <div class="recipe-view-header-emoji" id="viewEmoji"></div>
+      <img id="viewHeaderImg" src="" style="display:none" alt="">
+      <div class="recipe-view-meta">
+        <div class="recipe-view-title" id="viewTitle"></div>
+        <div class="recipe-view-times" id="viewTimes"></div>
+      </div>
+    </div>
+    <div class="recipe-view-body" id="viewBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="toggleFav()" id="viewFavBtn">☆ Favourite</button>
+      <button class="btn btn-ghost btn-sm" onclick="editRecipeFromView()">✏ Edit</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="deleteRecipe()">🗑 Delete</button>
+      <button class="btn btn-primary btn-sm" onclick="closeModal('viewModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ ADD / EDIT MODAL ═══════════════════ -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="editModalTitle">New Recipe</h2>
+      <button class="icon-btn" onclick="closeModal('editModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Basic info -->
+      <div class="form-group">
+        <label class="form-label">Recipe name *</label>
+        <input type="text" class="form-input" id="fName" placeholder="e.g. Slow-roasted lamb shoulder">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">⏱ Prep time (min)</label>
+          <input type="number" class="form-input" id="fPrep" min="0" placeholder="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🔥 Cook time (min)</label>
+          <input type="number" class="form-input" id="fCook" min="0" placeholder="120">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">👤 Serves</label>
+          <input type="number" class="form-input" id="fServes" min="1" placeholder="4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Emoji / icon</label>
+          <input type="text" class="form-input" id="fEmoji" placeholder="🍖" maxlength="4">
+        </div>
+      </div>
+
+      <!-- Ingredient tags -->
+      <div class="form-group">
+        <label class="form-label">🥩 Ingredient tags</label>
+        <div class="tags-check-grid" id="ingTagChecks"></div>
+        <div style="margin-top:0.4rem;display:flex;gap:0.4rem">
+          <input type="text" class="form-input" id="customIngTag" placeholder="Add custom tag…" style="flex:1;padding:5px 10px;font-size:0.85rem">
+          <button class="btn btn-ghost btn-sm" onclick="addCustomTag('ing')">Add</button>
+        </div>
+      </div>
+
+      <!-- Method tags -->
+      <div class="form-group">
+        <label class="form-label">🍲 Method tags</label>
+        <div class="tags-check-grid" id="methodTagChecks"></div>
+        <div style="margin-top:0.4rem;display:flex;gap:0.4rem">
+          <input type="text" class="form-input" id="customMethodTag" placeholder="Add custom tag…" style="flex:1;padding:5px 10px;font-size:0.85rem">
+          <button class="btn btn-ghost btn-sm" onclick="addCustomTag('method')">Add</button>
+        </div>
+      </div>
+
+      <!-- Ingredients -->
+      <div class="form-group">
+        <label class="form-label">Ingredients (grams)</label>
+        <div class="ingredients-list" id="ingredientsList"></div>
+        <button class="btn-add-row" onclick="addIngredientRow()">+ Add ingredient</button>
+      </div>
+
+      <!-- Steps -->
+      <div class="form-group">
+        <label class="form-label">Method / Steps</label>
+        <div class="steps-list" id="stepsList"></div>
+        <button class="btn-add-row" onclick="addStepRow()">+ Add step</button>
+      </div>
+
+      <!-- Notes -->
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <textarea class="form-textarea" id="fNotes" placeholder="Tips, variations, serving suggestions…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveRecipe()">💾 Save Recipe</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PHOTO IMPORT MODAL ═══════════════════ -->
+<div class="modal-overlay" id="photoModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📷 Import from Photo</h2>
+      <button class="icon-btn" onclick="closeModal('photoModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-family:var(--font-hand);color:var(--ink-faint);margin-bottom:1rem;font-size:0.95rem">
+        Take a photo of a recipe page from a book or magazine. Claude AI will read it and convert all measurements to grams automatically.
+      </p>
+      <div id="photoDropZone" class="photo-drop-zone" onclick="document.getElementById('photoFileInput').click()">
+        <div class="big-icon">📖</div>
+        <p>Tap to take a photo or upload an image</p>
+        <p style="font-size:0.8rem;margin-top:0.3rem">JPG, PNG, HEIC supported</p>
+      </div>
+      <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFile(this.files[0])">
+      <img id="photoPreview" class="photo-preview" style="display:none;margin-top:0.8rem" alt="Recipe photo">
+      <div id="aiStatus" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('photoModal')">Cancel</button>
+      <button class="btn btn-green" id="btnAnalyse" style="display:none" onclick="analysePhoto()">🤖 Analyse with AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙ Settings</h2>
+      <button class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-block">
+        <div class="settings-section-title">🤖 AI Photo Import</div>
+        <div class="form-group">
+          <label class="form-label">Anthropic API Key</label>
+          <input type="password" class="form-input" id="sApiKey" placeholder="sk-ant-…">
+          <p class="settings-hint">Your key is stored locally only. Never shared. Used only for photo-to-recipe import.</p>
+        </div>
+      </div>
+
+      <div class="settings-block">
+        <div class="settings-section-title">🔥 Firebase Sync</div>
+        <div class="form-group">
+          <label class="form-label">API Key</label>
+          <input type="text" class="form-input" id="sFirebaseApiKey" placeholder="AIza…">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project ID</label>
+          <input type="text" class="form-input" id="sFirebaseProjectId" placeholder="my-recipe-app">
+        </div>
+        <div class="form-group">
+          <label class="form-label">App ID</label>
+          <input type="text" class="form-input" id="sFirebaseAppId" placeholder="1:123456:web:abc123">
+        </div>
+        <p class="settings-hint">Create a free Firebase project at console.firebase.google.com → Firestore Database → Web app. Paste config values here.</p>
+        <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
+        <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
+      </div>
+
+      <div class="settings-block">
+        <div class="settings-section-title">📤 Data</div>
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export JSON</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFileInput').click()">Import JSON</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importJSON(this)">
+        </div>
+      </div>
+
+      <div class="settings-block">
+        <div class="settings-section-title">🏷 Manage Tags</div>
+        <p style="font-family:var(--font-hand);font-size:0.88rem;color:var(--ink-faint)">
+          Ingredient tags: <span id="ingTagList"></span><br>
+          Method tags: <span id="methodTagList"></span>
+        </p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══════════════════ FIREBASE SDK ═══════════════════ -->
+<script type="module">
+// We'll load Firebase dynamically when user enters config
+window._fb = {};
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+const DB_KEY = 'recipebook_recipes';
+const SETTINGS_KEY = 'recipebook_settings';
+
+let recipes = [];
+let settings = {};
+let activeTab = 'all';
+let activeIngFilters = new Set();
+let activeMethFilters = new Set();
+let editingId = null;
+let viewingId = null;
+let photoBase64 = null;
+let firebaseDb = null;
+
+const DEFAULT_ING_TAGS = ['Beef','Chicken','Pork','Lamb','Seafood','Fish','Vegetarian','Vegan','Pasta','Rice','Eggs','Dairy'];
+const DEFAULT_METHOD_TAGS = ['Soup','Slow Cook','Bake','Roast','Fry','Grill','Stir-fry','Steam','Salad','Sauce','Dessert','Breakfast','BBQ'];
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+function init() {
+  const raw = localStorage.getItem(DB_KEY);
+  recipes = raw ? JSON.parse(raw) : getSampleRecipes();
+  const sRaw = localStorage.getItem(SETTINGS_KEY);
+  settings = sRaw ? JSON.parse(sRaw) : {
+    ingTags: [...DEFAULT_ING_TAGS],
+    methodTags: [...DEFAULT_METHOD_TAGS],
+    apiKey: '',
+    firebaseApiKey: '',
+    firebaseProjectId: '',
+    firebaseAppId: ''
+  };
+  if (!settings.ingTags) settings.ingTags = [...DEFAULT_ING_TAGS];
+  if (!settings.methodTags) settings.methodTags = [...DEFAULT_METHOD_TAGS];
+
+  renderFilters();
+  renderGrid();
+
+  // Try reconnect Firebase
+  if (settings.firebaseApiKey && settings.firebaseProjectId) {
+    initFirebase(true);
+  }
+}
+
+function save() {
+  localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+  syncToFirebase();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER FILTERS
+// ═══════════════════════════════════════════════════════
+function renderFilters() {
+  const ingRow = document.getElementById('ingFilterRow');
+  const methRow = document.getElementById('methodFilterRow');
+  ingRow.innerHTML = '';
+  methRow.innerHTML = '';
+
+  settings.ingTags.forEach(tag => {
+    const el = document.createElement('button');
+    el.className = 'filter-tag' + (activeIngFilters.has(tag) ? ' active' : '');
+    el.textContent = tag;
+    el.onclick = () => toggleFilter('ing', tag, el);
+    ingRow.appendChild(el);
+  });
+  settings.methodTags.forEach(tag => {
+    const el = document.createElement('button');
+    el.className = 'filter-tag method' + (activeMethFilters.has(tag) ? ' active' : '');
+    el.textContent = tag;
+    el.onclick = () => toggleFilter('method', tag, el);
+    methRow.appendChild(el);
+  });
+}
+
+function toggleFilter(type, tag, el) {
+  const set = type === 'ing' ? activeIngFilters : activeMethFilters;
+  if (set.has(tag)) { set.delete(tag); el.classList.remove('active'); }
+  else { set.add(tag); el.classList.add('active'); }
+  renderGrid();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER GRID
+// ═══════════════════════════════════════════════════════
+function renderGrid() {
+  const grid = document.getElementById('recipeGrid');
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let list = recipes.filter(r => {
+    if (activeTab === 'favourites' && !r.fav) return false;
+    if (q) {
+      const hay = (r.name + ' ' + (r.ingTags||[]).join(' ') + ' ' + (r.methodTags||[]).join(' ') + ' ' + (r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (activeIngFilters.size) {
+      const has = (r.ingTags||[]).some(t => activeIngFilters.has(t));
+      if (!has) return false;
+    }
+    if (activeMethFilters.size) {
+      const has = (r.methodTags||[]).some(t => activeMethFilters.has(t));
+      if (!has) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('recipeCount').textContent = list.length + ' recipe' + (list.length !== 1 ? 's' : '');
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="big">🍳</div><p>No recipes found.<br>Add one with the ＋ button!</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(r => {
+    const prep = r.prepTime ? `⏱ ${r.prepTime}m prep` : '';
+    const cook = r.cookTime ? `🔥 ${r.cookTime}m cook` : '';
+    const allTags = [...(r.ingTags||[]).map(t=>`<span class="tag-pill">${t}</span>`), ...(r.methodTags||[]).map(t=>`<span class="tag-pill method">${t}</span>`)].slice(0,4).join('');
+    const emoji = r.emoji || guessEmoji(r);
+    const imgHtml = r.imageData
+      ? `<div class="card-img"><img src="${r.imageData}" alt="${esc(r.name)}"></div>`
+      : `<div class="card-img"><span class="card-img-placeholder">${emoji}</span></div>`;
+    return `<div class="recipe-card" onclick="viewRecipe('${r.id}')">
+      ${imgHtml}
+      <div class="card-body">
+        <div class="card-title">${esc(r.name)}${r.fav?' ★':''}</div>
+        <div class="card-times">${[prep,cook].filter(Boolean).join(' · ')}</div>
+        <div class="card-tags">${allTags}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function guessEmoji(r) {
+  const tags = [...(r.ingTags||[]), ...(r.methodTags||[])].map(t=>t.toLowerCase());
+  if (tags.includes('chicken')) return '🍗';
+  if (tags.includes('beef') || tags.includes('lamb')) return '🥩';
+  if (tags.includes('fish') || tags.includes('seafood')) return '🐟';
+  if (tags.includes('soup')) return '🍲';
+  if (tags.includes('pasta')) return '🍝';
+  if (tags.includes('dessert')) return '🍰';
+  if (tags.includes('salad')) return '🥗';
+  if (tags.includes('breakfast')) return '🍳';
+  if (tags.includes('bbq')) return '🍖';
+  if (tags.includes('vegetarian') || tags.includes('vegan')) return '🥦';
+  return '🍴';
+}
+
+function setTab(tab, el) {
+  activeTab = tab;
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderGrid();
+}
+
+// ═══════════════════════════════════════════════════════
+//  VIEW RECIPE
+// ═══════════════════════════════════════════════════════
+function viewRecipe(id) {
+  const r = recipes.find(x => x.id === id);
+  if (!r) return;
+  viewingId = id;
+
+  const emoji = r.emoji || guessEmoji(r);
+  document.getElementById('viewEmoji').textContent = emoji;
+
+  const imgEl = document.getElementById('viewHeaderImg');
+  if (r.imageData) { imgEl.src = r.imageData; imgEl.style.display = ''; }
+  else { imgEl.style.display = 'none'; }
+
+  document.getElementById('viewTitle').textContent = r.name;
+
+  const times = [];
+  if (r.prepTime) times.push(`⏱ Prep ${r.prepTime} min`);
+  if (r.cookTime) times.push(`🔥 Cook ${r.cookTime} min`);
+  if (r.serves) times.push(`👤 Serves ${r.serves}`);
+  document.getElementById('viewTimes').innerHTML = times.map(t=>`<span>${t}</span>`).join('');
+
+  const favBtn = document.getElementById('viewFavBtn');
+  favBtn.textContent = r.fav ? '★ Unfavourite' : '☆ Favourite';
+
+  // Body
+  const allTags = [...(r.ingTags||[]).map(t=>`<span class="tag-pill">${t}</span>`), ...(r.methodTags||[]).map(t=>`<span class="tag-pill method">${t}</span>`)].join('');
+
+  let body = `<div style="margin-bottom:0.8rem">${allTags}</div>`;
+
+  if (r.ingredients && r.ingredients.length) {
+    body += `<div class="recipe-section-title">Ingredients</div>`;
+    body += r.ingredients.filter(i=>i.name).map(i => {
+      const amt = i.amount ? `<span class="ing-amount">${i.amount}g</span>` : '';
+      return `<div class="ingredient-view-row"><span class="ing-name">${esc(i.name)}</span>${amt}</div>`;
+    }).join('');
+  }
+
+  if (r.steps && r.steps.length) {
+    body += `<div class="recipe-section-title">Method</div>`;
+    body += r.steps.filter(s=>s).map((s, i) => `
+      <div class="step-view">
+        <div class="step-view-num">${i+1}.</div>
+        <div class="step-view-text">${esc(s)}</div>
+      </div>`).join('');
+  }
+
+  if (r.notes) {
+    body += `<div class="recipe-notes">${esc(r.notes)}</div>`;
+  }
+
+  document.getElementById('viewBody').innerHTML = body;
+  openModal('viewModal');
+}
+
+function toggleFav() {
+  const r = recipes.find(x => x.id === viewingId);
+  if (!r) return;
+  r.fav = !r.fav;
+  save();
+  renderGrid();
+  document.getElementById('viewFavBtn').textContent = r.fav ? '★ Unfavourite' : '☆ Favourite';
+  toast(r.fav ? '★ Added to favourites' : 'Removed from favourites');
+}
+
+function deleteRecipe() {
+  if (!confirm('Delete this recipe?')) return;
+  recipes = recipes.filter(x => x.id !== viewingId);
+  save();
+  renderGrid();
+  closeModal('viewModal');
+  toast('Recipe deleted');
+}
+
+// ═══════════════════════════════════════════════════════
+//  ADD / EDIT RECIPE
+// ═══════════════════════════════════════════════════════
+function openAddRecipe(prefill = null) {
+  editingId = null;
+  document.getElementById('editModalTitle').textContent = 'New Recipe';
+  clearForm();
+  buildTagChecks();
+  addIngredientRow(); addIngredientRow(); addIngredientRow();
+  addStepRow();
+  if (prefill) prefillForm(prefill);
+  openModal('editModal');
+}
+
+function editRecipeFromView() {
+  const r = recipes.find(x => x.id === viewingId);
+  if (!r) return;
+  closeModal('viewModal');
+  editingId = r.id;
+  document.getElementById('editModalTitle').textContent = 'Edit Recipe';
+  clearForm();
+  buildTagChecks();
+  document.getElementById('fName').value = r.name || '';
+  document.getElementById('fPrep').value = r.prepTime || '';
+  document.getElementById('fCook').value = r.cookTime || '';
+  document.getElementById('fServes').value = r.serves || '';
+  document.getElementById('fEmoji').value = r.emoji || '';
+  document.getElementById('fNotes').value = r.notes || '';
+  (r.ingTags||[]).forEach(t => {
+    const cb = document.querySelector(`#ingTagChecks input[value="${CSS.escape(t)}"]`);
+    if (cb) cb.checked = true;
+  });
+  (r.methodTags||[]).forEach(t => {
+    const cb = document.querySelector(`#methodTagChecks input[value="${CSS.escape(t)}"]`);
+    if (cb) cb.checked = true;
+  });
+  const ingList = document.getElementById('ingredientsList');
+  ingList.innerHTML = '';
+  (r.ingredients||[]).forEach(i => addIngredientRow(i.name, i.amount));
+  if (!(r.ingredients||[]).length) addIngredientRow();
+  const stepsList = document.getElementById('stepsList');
+  stepsList.innerHTML = '';
+  (r.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
+  if (!(r.steps||[]).length) addStepRow();
+  openModal('editModal');
+}
+
+function clearForm() {
+  ['fName','fPrep','fCook','fServes','fEmoji','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ingredientsList').innerHTML = '';
+  document.getElementById('stepsList').innerHTML = '';
+}
+
+function buildTagChecks() {
+  const ingContainer = document.getElementById('ingTagChecks');
+  const methContainer = document.getElementById('methodTagChecks');
+  ingContainer.innerHTML = settings.ingTags.map(t =>
+    `<label class="tag-check-label"><input type="checkbox" value="${esc(t)}"> ${esc(t)}</label>`
+  ).join('');
+  methContainer.innerHTML = settings.methodTags.map(t =>
+    `<label class="tag-check-label method"><input type="checkbox" value="${esc(t)}"> ${esc(t)}</label>`
+  ).join('');
+}
+
+function addIngredientRow(name='', amount='') {
+  const list = document.getElementById('ingredientsList');
+  const row = document.createElement('div');
+  row.className = 'ingredient-row';
+  row.innerHTML = `
+    <input type="text" class="form-input" placeholder="Ingredient name" value="${esc(name)}" style="font-size:0.88rem;padding:7px 10px">
+    <input type="number" class="form-input" placeholder="grams" value="${amount||''}" min="0" step="0.1" style="font-size:0.88rem;padding:7px 10px">
+    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+let stepCount = 0;
+function addStepRow(text='', num=null) {
+  stepCount++;
+  const n = num || stepCount;
+  const list = document.getElementById('stepsList');
+  const row = document.createElement('div');
+  row.className = 'step-row';
+  row.innerHTML = `
+    <div class="step-num">${n}</div>
+    <textarea class="form-input form-textarea" placeholder="Describe this step…" style="min-height:60px;font-size:0.88rem">${esc(text)}</textarea>
+    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+function addCustomTag(type) {
+  const input = document.getElementById(type === 'ing' ? 'customIngTag' : 'customMethodTag');
+  const val = input.value.trim();
+  if (!val) return;
+  if (type === 'ing') {
+    if (!settings.ingTags.includes(val)) settings.ingTags.push(val);
+  } else {
+    if (!settings.methodTags.includes(val)) settings.methodTags.push(val);
+  }
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  input.value = '';
+  buildTagChecks();
+  renderFilters();
+}
+
+function saveRecipe() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('Please enter a recipe name'); return; }
+
+  const ingTags = [...document.querySelectorAll('#ingTagChecks input:checked')].map(cb => cb.value);
+  const methodTags = [...document.querySelectorAll('#methodTagChecks input:checked')].map(cb => cb.value);
+
+  const ingredients = [...document.querySelectorAll('#ingredientsList .ingredient-row')].map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value.trim(), amount: parseFloat(inputs[1].value) || '' };
+  }).filter(i => i.name);
+
+  const steps = [...document.querySelectorAll('#stepsList textarea')].map(t => t.value.trim()).filter(Boolean);
+
+  const r = {
+    id: editingId || 'r_' + Date.now(),
+    name,
+    prepTime: parseInt(document.getElementById('fPrep').value) || null,
+    cookTime: parseInt(document.getElementById('fCook').value) || null,
+    serves: parseInt(document.getElementById('fServes').value) || null,
+    emoji: document.getElementById('fEmoji').value.trim() || null,
+    ingTags, methodTags, ingredients, steps,
+    notes: document.getElementById('fNotes').value.trim(),
+    fav: editingId ? (recipes.find(x=>x.id===editingId)||{}).fav : false,
+    imageData: editingId ? (recipes.find(x=>x.id===editingId)||{}).imageData : null,
+    updatedAt: Date.now()
+  };
+
+  if (editingId) {
+    const idx = recipes.findIndex(x => x.id === editingId);
+    if (idx >= 0) recipes[idx] = r;
+  } else {
+    recipes.unshift(r);
+  }
+
+  save();
+  renderGrid();
+  closeModal('editModal');
+  toast(editingId ? 'Recipe updated ✓' : 'Recipe saved ✓');
+}
+
+// ═══════════════════════════════════════════════════════
+//  PHOTO IMPORT
+// ═══════════════════════════════════════════════════════
+function openPhotoImport() {
+  photoBase64 = null;
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('aiStatus').style.display = 'none';
+  document.getElementById('btnAnalyse').style.display = 'none';
+  document.getElementById('photoFileInput').value = '';
+  openModal('photoModal');
+}
+
+function handlePhotoFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    photoBase64 = e.target.result.split(',')[1];
+    const prev = document.getElementById('photoPreview');
+    prev.src = e.target.result;
+    prev.style.display = 'block';
+    document.getElementById('btnAnalyse').style.display = '';
+    document.getElementById('aiStatus').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analysePhoto() {
+  if (!photoBase64) return;
+  const apiKey = settings.apiKey || '';
+  if (!apiKey) {
+    alert('Please add your Anthropic API key in Settings first.');
+    return;
+  }
+
+  document.getElementById('aiStatus').style.display = 'block';
+  document.getElementById('aiStatus').innerHTML = `<div class="ai-status"><span class="spinner"></span> Reading recipe and converting measurements…</div>`;
+  document.getElementById('btnAnalyse').disabled = true;
+
+  const prompt = `You are a recipe data extractor. Analyse this image of a recipe page.
+Extract all recipe information and return ONLY a JSON object (no markdown, no explanation) with this exact structure:
+{
+  "name": "Recipe name",
+  "prepTime": 15,
+  "cookTime": 30,
+  "serves": 4,
+  "emoji": "🍖",
+  "ingTags": ["Beef", "Vegetables"],
+  "methodTags": ["Slow Cook"],
+  "ingredients": [
+    {"name": "plain flour", "amount": 250},
+    {"name": "butter", "amount": 120}
+  ],
+  "steps": [
+    "Preheat oven to 180°C.",
+    "Mix flour and butter together."
+  ],
+  "notes": "Any tips or notes from the recipe."
+}
+
+CRITICAL RULES:
+- ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
+- For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
+- For flour: 1 cup = 125g, 1 tbsp = 8g
+- For sugar: 1 cup = 200g, 1 tbsp = 12g
+- For butter: 1 cup = 225g, 1 tbsp = 14g
+- For items that can't easily be grams (e.g. "2 eggs"), convert to approximate grams or use the count (e.g. 2 eggs = 100g)
+- ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
+- methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
+- prepTime and cookTime are integers in minutes, or null if not stated
+- serves is an integer or null
+- Return ONLY the JSON, nothing else.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: [{
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: photoBase64 }
+          }, {
+            type: 'text',
+            text: prompt
+          }]
+        }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || 'API error');
+    }
+
+    const data = await resp.json();
+    const text = data.content.map(b => b.text || '').join('').trim();
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    // Save image
+    parsed.imageData = 'data:image/jpeg;base64,' + photoBase64;
+
+    document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
+    setTimeout(() => {
+      closeModal('photoModal');
+      openAddRecipe(parsed);
+    }, 800);
+
+  } catch (e) {
+    document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ Error: ${esc(e.message)}<br>Check your API key in Settings.</div>`;
+  } finally {
+    document.getElementById('btnAnalyse').disabled = false;
+  }
+}
+
+function prefillForm(data) {
+  if (data.name) document.getElementById('fName').value = data.name;
+  if (data.prepTime) document.getElementById('fPrep').value = data.prepTime;
+  if (data.cookTime) document.getElementById('fCook').value = data.cookTime;
+  if (data.serves) document.getElementById('fServes').value = data.serves;
+  if (data.emoji) document.getElementById('fEmoji').value = data.emoji;
+  if (data.notes) document.getElementById('fNotes').value = data.notes;
+
+  // Add any new tags from AI
+  (data.ingTags||[]).forEach(t => { if (!settings.ingTags.includes(t)) settings.ingTags.push(t); });
+  (data.methodTags||[]).forEach(t => { if (!settings.methodTags.includes(t)) settings.methodTags.push(t); });
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  buildTagChecks();
+
+  (data.ingTags||[]).forEach(t => {
+    const cb = document.querySelector(`#ingTagChecks input[value="${CSS.escape(t)}"]`);
+    if (cb) cb.checked = true;
+  });
+  (data.methodTags||[]).forEach(t => {
+    const cb = document.querySelector(`#methodTagChecks input[value="${CSS.escape(t)}"]`);
+    if (cb) cb.checked = true;
+  });
+
+  const ingList = document.getElementById('ingredientsList');
+  ingList.innerHTML = '';
+  (data.ingredients||[]).forEach(i => addIngredientRow(i.name, i.amount));
+  if (!(data.ingredients||[]).length) addIngredientRow();
+
+  const stepsList = document.getElementById('stepsList');
+  stepsList.innerHTML = '';
+  stepCount = 0;
+  (data.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
+  if (!(data.steps||[]).length) addStepRow();
+
+  // Save photo to recipe
+  window._pendingImageData = data.imageData || null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('sApiKey').value = settings.apiKey || '';
+  document.getElementById('sFirebaseApiKey').value = settings.firebaseApiKey || '';
+  document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
+  document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
+  document.getElementById('ingTagList').textContent = (settings.ingTags||[]).join(', ');
+  document.getElementById('methodTagList').textContent = (settings.methodTags||[]).join(', ');
+  updateFirebaseStatus();
+  openModal('settingsModal');
+}
+
+function saveSettings() {
+  settings.apiKey = document.getElementById('sApiKey').value.trim();
+  settings.firebaseApiKey = document.getElementById('sFirebaseApiKey').value.trim();
+  settings.firebaseProjectId = document.getElementById('sFirebaseProjectId').value.trim();
+  settings.firebaseAppId = document.getElementById('sFirebaseAppId').value.trim();
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  closeModal('settingsModal');
+  toast('Settings saved ✓');
+}
+
+// ═══════════════════════════════════════════════════════
+//  FIREBASE
+// ═══════════════════════════════════════════════════════
+async function initFirebase(silent = false) {
+  const apiKey = settings.firebaseApiKey || document.getElementById('sFirebaseApiKey')?.value.trim();
+  const projectId = settings.firebaseProjectId || document.getElementById('sFirebaseProjectId')?.value.trim();
+  const appId = settings.firebaseAppId || document.getElementById('sFirebaseAppId')?.value.trim();
+
+  if (!apiKey || !projectId) {
+    if (!silent) alert('Please enter Firebase API Key and Project ID');
+    return;
+  }
+
+  setSyncDot('syncing');
+  try {
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    const config = { apiKey, projectId, appId: appId || `1:000000:web:000000` };
+    const existing = getApps();
+    const app = existing.length ? existing[0] : initializeApp(config);
+    const db = getFirestore(app);
+    firebaseDb = { db, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot };
+
+    // Load from Firestore
+    const snap = await getDocs(collection(db, 'recipes'));
+    if (!snap.empty) {
+      const fbRecipes = [];
+      snap.forEach(d => fbRecipes.push(d.data()));
+      // Merge: take firebase versions
+      const fbIds = new Set(fbRecipes.map(r => r.id));
+      const localOnly = recipes.filter(r => !fbIds.has(r.id));
+      recipes = [...fbRecipes, ...localOnly];
+      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+      renderGrid();
+    } else {
+      // Push local to Firebase
+      await pushAllToFirebase();
+    }
+
+    setSyncDot('ok');
+    if (!silent) { document.getElementById('firebaseStatus').textContent = '✓ Connected'; toast('Firebase connected ✓'); }
+
+    // Listen for changes
+    onSnapshot(collection(db, 'recipes'), snap => {
+      const fbRecipes = [];
+      snap.forEach(d => fbRecipes.push(d.data()));
+      recipes = fbRecipes;
+      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+      renderGrid();
+    });
+
+  } catch (e) {
+    setSyncDot('err');
+    if (!silent) { document.getElementById('firebaseStatus').textContent = '✗ Error: ' + e.message; }
+    console.error('Firebase error:', e);
+  }
+}
+
+async function syncToFirebase() {
+  if (!firebaseDb) return;
+  setSyncDot('syncing');
+  try {
+    await pushAllToFirebase();
+    setSyncDot('ok');
+  } catch (e) {
+    setSyncDot('err');
+    console.error('Sync error:', e);
+  }
+}
+
+async function pushAllToFirebase() {
+  if (!firebaseDb) return;
+  const { db, collection, setDoc, doc } = firebaseDb;
+  for (const r of recipes) {
+    await setDoc(doc(db, 'recipes', r.id), r);
+  }
+}
+
+function updateFirebaseStatus() {
+  const statusEl = document.getElementById('firebaseStatus');
+  if (statusEl) statusEl.textContent = firebaseDb ? '✓ Connected' : '';
+}
+
+function setSyncDot(state) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot ' + state;
+}
+
+// ═══════════════════════════════════════════════════════
+//  IMPORT / EXPORT
+// ═══════════════════════════════════════════════════════
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(recipes, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipes_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('Exported ' + recipes.length + ' recipes');
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Invalid format');
+      const existing = new Set(recipes.map(r => r.id));
+      let added = 0;
+      data.forEach(r => { if (!existing.has(r.id)) { recipes.push(r); added++; } });
+      save(); renderGrid();
+      toast(`Imported ${added} new recipes`);
+    } catch (err) { alert('Invalid JSON file: ' + err.message); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ═══════════════════════════════════════════════════════
+//  MODAL HELPERS
+// ═══════════════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+}
+
+// Close on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) closeModal(el.id); });
+});
+
+// ═══════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SAMPLE RECIPES
+// ═══════════════════════════════════════════════════════
+function getSampleRecipes() {
+  return [{
+    id: 'sample_1',
+    name: 'Slow-Roasted Lamb Shoulder',
+    prepTime: 20, cookTime: 240, serves: 6,
+    emoji: '🍖',
+    ingTags: ['Lamb'], methodTags: ['Roast', 'Slow Cook'],
+    ingredients: [
+      { name: 'lamb shoulder', amount: 2000 },
+      { name: 'garlic cloves', amount: 30 },
+      { name: 'rosemary sprigs', amount: 15 },
+      { name: 'olive oil', amount: 45 },
+      { name: 'sea salt', amount: 15 },
+      { name: 'black pepper', amount: 5 },
+      { name: 'chicken stock', amount: 500 }
+    ],
+    steps: [
+      'Preheat oven to 160°C fan-forced. Score the lamb all over with a sharp knife.',
+      'Stuff garlic and rosemary into the scored cuts. Rub with olive oil, salt and pepper.',
+      'Place in a deep roasting pan, pour stock around (not over) the lamb. Cover tightly with foil.',
+      'Roast for 4 hours until the meat is falling off the bone. Rest 20 minutes before serving.'
+    ],
+    notes: 'Serve with roasted vegetables and gravy made from the pan juices.',
+    fav: true, updatedAt: Date.now()
+  }, {
+    id: 'sample_2',
+    name: 'Classic Chicken Soup',
+    prepTime: 15, cookTime: 90, serves: 4,
+    emoji: '🍲',
+    ingTags: ['Chicken'], methodTags: ['Soup'],
+    ingredients: [
+      { name: 'whole chicken', amount: 1500 },
+      { name: 'carrots', amount: 200 },
+      { name: 'celery stalks', amount: 150 },
+      { name: 'onion', amount: 180 },
+      { name: 'water', amount: 2000 },
+      { name: 'salt', amount: 10 },
+      { name: 'bay leaves', amount: 3 },
+      { name: 'egg noodles', amount: 150 }
+    ],
+    steps: [
+      'Place the whole chicken in a large pot with water, salt and bay leaves. Bring to a boil.',
+      'Skim any foam, reduce heat and simmer 1 hour until chicken is very tender.',
+      'Remove chicken. Add chopped carrots, celery and onion. Simmer 20 minutes.',
+      'Shred chicken meat and return to pot with noodles. Cook 10 minutes more.'
+    ],
+    notes: 'The secret is simmering slowly — never boiling hard.',
+    fav: false, updatedAt: Date.now()
+  }];
+}
+
+// ═══════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════
+init();
+</script>
+
+</body>
+</html>
