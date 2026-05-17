@@ -1423,6 +1423,32 @@ function openUrlImport() {
   openModal('urlModal');
 }
 
+async function fetchViaProxy(url) {
+  const proxies = [
+    async () => {
+      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      if (!d.contents) throw new Error();
+      return d.contents;
+    },
+    async () => {
+      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`);
+      if (!r.ok) throw new Error();
+      return r.text();
+    },
+    async () => {
+      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
+      if (!r.ok) throw new Error();
+      return r.text();
+    },
+  ];
+  for (const proxy of proxies) {
+    try { return await proxy(); } catch { /* try next */ }
+  }
+  throw new Error('Could not fetch the page — try pasting the recipe text instead (📋 button).');
+}
+
 async function analyseUrl() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
@@ -1438,12 +1464,9 @@ async function analyseUrl() {
   btn.disabled = true;
 
   try {
-    const proxyResp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    if (!proxyResp.ok) throw new Error('Could not fetch the page. Check the URL and try again.');
-    const proxyData = await proxyResp.json();
-    if (!proxyData.contents) throw new Error('Page returned no content.');
+    const html = await fetchViaProxy(url);
 
-    const text = proxyData.contents
+    const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
       .replace(/<[^>]+>/g, ' ')
