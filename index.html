@@ -576,6 +576,7 @@
     </span>
     <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
     <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
+    <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
   </div>
 </header>
@@ -738,6 +739,30 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('photoModal')">Cancel</button>
       <button class="btn btn-green" id="btnAnalyse" style="display:none" onclick="analysePhoto()">🤖 Analyse with AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PASTE IMPORT MODAL ═══════════════════ -->
+<div class="modal-overlay" id="pasteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📋 Paste Recipe Text</h2>
+      <button class="icon-btn" onclick="closeModal('pasteModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-family:var(--font-hand);color:var(--ink-faint);margin-bottom:1rem;font-size:0.95rem">
+        Paste a recipe from a chat, email, or anywhere. Claude AI will extract it and convert all measurements to grams.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Recipe text</label>
+        <textarea class="form-textarea" id="pasteInput" rows="10" placeholder="Paste recipe text here…" style="min-height:180px;font-size:0.88rem" oninput="document.getElementById('btnAnalysePaste').style.display=this.value.trim()?'':'none'"></textarea>
+      </div>
+      <div id="pasteStatus" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('pasteModal')">Cancel</button>
+      <button class="btn btn-green" id="btnAnalysePaste" style="display:none" onclick="analysePaste()">🤖 Analyse with AI</button>
     </div>
   </div>
 </div>
@@ -1345,6 +1370,106 @@ function prefillForm(data) {
 
   // Save photo to recipe
   window._pendingImageData = data.imageData || null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  PASTE IMPORT
+// ═══════════════════════════════════════════════════════
+function openPasteImport() {
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('pasteStatus').style.display = 'none';
+  document.getElementById('btnAnalysePaste').style.display = 'none';
+  openModal('pasteModal');
+}
+
+async function analysePaste() {
+  const text = document.getElementById('pasteInput').value.trim();
+  if (!text) return;
+  const apiKey = settings.apiKey || '';
+  if (!apiKey) {
+    alert('Please add your Anthropic API key in Settings first.');
+    return;
+  }
+
+  const statusEl = document.getElementById('pasteStatus');
+  const btn = document.getElementById('btnAnalysePaste');
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Reading recipe and converting measurements…</div>`;
+  btn.disabled = true;
+
+  const prompt = `You are a recipe data extractor. The text below is a recipe.
+Extract all recipe information and return ONLY a JSON object (no markdown, no explanation) with this exact structure:
+{
+  "name": "Recipe name",
+  "prepTime": 15,
+  "cookTime": 30,
+  "serves": 4,
+  "emoji": "🍖",
+  "ingTags": ["Beef", "Vegetables"],
+  "methodTags": ["Slow Cook"],
+  "ingredients": [
+    {"name": "plain flour", "amount": 250},
+    {"name": "butter", "amount": 120}
+  ],
+  "steps": [
+    "Preheat oven to 180°C.",
+    "Mix flour and butter together."
+  ],
+  "notes": "Any tips or notes from the recipe."
+}
+
+CRITICAL RULES:
+- ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
+- For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
+- For flour: 1 cup = 125g, 1 tbsp = 8g
+- For sugar: 1 cup = 200g, 1 tbsp = 12g
+- For butter: 1 cup = 225g, 1 tbsp = 14g
+- For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
+- ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
+- methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
+- prepTime and cookTime are integers in minutes, or null if not stated
+- serves is an integer or null
+- Return ONLY the JSON, nothing else.
+
+RECIPE TEXT:
+${text}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || 'API error');
+    }
+
+    const data = await resp.json();
+    const raw = data.content.map(b => b.text || '').join('').trim();
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+
+    statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
+    setTimeout(() => {
+      closeModal('pasteModal');
+      openAddRecipe(parsed);
+    }, 800);
+
+  } catch (e) {
+    statusEl.innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}<br>Check your API key in Settings.</div>`;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
