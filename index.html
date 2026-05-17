@@ -801,12 +801,16 @@
     </div>
     <div class="modal-body">
       <div class="settings-block">
-        <div class="settings-section-title">🤖 AI Photo Import</div>
+        <div class="settings-section-title">🤖 AI Import</div>
         <div class="form-group">
           <label class="form-label">Anthropic API Key</label>
           <input type="password" class="form-input" id="sApiKey" placeholder="sk-ant-…">
-          <p class="settings-hint">Your key is stored locally only. Never shared. Used only for photo-to-recipe import.</p>
         </div>
+        <div class="form-group">
+          <label class="form-label">Google Gemini API Key <span style="font-family:var(--font-hand);font-size:0.8rem;color:var(--green)">(free tier available)</span></label>
+          <input type="password" class="form-input" id="sGeminiKey" placeholder="AIza…">
+        </div>
+        <p class="settings-hint">Keys are stored locally only, never shared. Add either or both — Anthropic is used when set, otherwise Gemini. Get a free Gemini key at aistudio.google.com.</p>
       </div>
 
       <div class="settings-block">
@@ -892,6 +896,7 @@ function init() {
     ingTags: [...DEFAULT_ING_TAGS],
     methodTags: [...DEFAULT_METHOD_TAGS],
     apiKey: '',
+    geminiApiKey: '',
     firebaseApiKey: '',
     firebaseProjectId: '',
     firebaseAppId: ''
@@ -1262,11 +1267,49 @@ function handlePhotoFile(file) {
   reader.readAsDataURL(file);
 }
 
+// Calls Anthropic if apiKey is set, otherwise Gemini. imageBase64 is optional (vision).
+async function callAI(prompt, imageBase64 = null) {
+  const anthropicKey = settings.apiKey || '';
+  const geminiKey = settings.geminiApiKey || '';
+  if (!anthropicKey && !geminiKey) throw new Error('No AI key set. Add an Anthropic or Gemini API key in Settings.');
+
+  if (anthropicKey) {
+    const content = [];
+    if (imageBase64) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } });
+    content.push({ type: 'text', text: prompt });
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: 'claude-opus-4-20250514', max_tokens: 2000, messages: [{ role: 'user', content }] })
+    });
+    if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Anthropic API error'); }
+    const data = await resp.json();
+    return data.content.map(b => b.text || '').join('').trim();
+  }
+
+  // Gemini
+  const parts = [];
+  if (imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
+  parts.push({ text: prompt });
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts }] })
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Gemini API error'); }
+  const data = await resp.json();
+  return data.candidates[0].content.parts[0].text.trim();
+}
+
 async function analysePhoto() {
   if (!photoBase64) return;
-  const apiKey = settings.apiKey || '';
-  if (!apiKey) {
-    alert('Please add your Anthropic API key in Settings first.');
+  if (!settings.apiKey && !settings.geminiApiKey) {
+    alert('Please add an Anthropic or Gemini API key in Settings first.');
     return;
   }
 
@@ -1278,6 +1321,7 @@ async function analysePhoto() {
 Extract all recipe information and return ONLY a JSON object (no markdown, no explanation) with this exact structure:
 {
   "name": "Recipe name",
+  "origin": "Book title, author name, or URL if visible — null if not shown",
   "prepTime": 15,
   "cookTime": 30,
   "serves": 4,
@@ -1288,20 +1332,18 @@ Extract all recipe information and return ONLY a JSON object (no markdown, no ex
     {"name": "plain flour", "amount": 250},
     {"name": "butter", "amount": 120}
   ],
-  "steps": [
-    "Preheat oven to 180°C.",
-    "Mix flour and butter together."
-  ],
+  "steps": ["Preheat oven to 180°C.", "Mix flour and butter together."],
   "notes": "Any tips or notes from the recipe."
 }
 
 CRITICAL RULES:
+- origin: if the image shows a book title, author name, or website URL, capture it here. Otherwise set to null.
 - ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
 - For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
 - For flour: 1 cup = 125g, 1 tbsp = 8g
 - For sugar: 1 cup = 200g, 1 tbsp = 12g
 - For butter: 1 cup = 225g, 1 tbsp = 14g
-- For items that can't easily be grams (e.g. "2 eggs"), convert to approximate grams or use the count (e.g. 2 eggs = 100g)
+- For items that can't easily be grams (e.g. "2 eggs"), convert to approximate grams (2 eggs = 100g)
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated
@@ -1309,51 +1351,13 @@ CRITICAL RULES:
 - Return ONLY the JSON, nothing else.`;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-20250514',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [{
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: photoBase64 }
-          }, {
-            type: 'text',
-            text: prompt
-          }]
-        }]
-      })
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error?.message || 'API error');
-    }
-
-    const data = await resp.json();
-    const text = data.content.map(b => b.text || '').join('').trim();
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-
-    // Save image
+    const raw = await callAI(prompt, photoBase64);
+    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.imageData = 'data:image/jpeg;base64,' + photoBase64;
-
     document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
-    setTimeout(() => {
-      closeModal('photoModal');
-      openAddRecipe(parsed);
-    }, 800);
-
+    setTimeout(() => { closeModal('photoModal'); openAddRecipe(parsed); }, 800);
   } catch (e) {
-    document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ Error: ${esc(e.message)}<br>Check your API key in Settings.</div>`;
+    document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}</div>`;
   } finally {
     document.getElementById('btnAnalyse').disabled = false;
   }
@@ -1372,9 +1376,8 @@ function openUrlImport() {
 async function analyseUrl() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
-  const apiKey = settings.apiKey || '';
-  if (!apiKey) {
-    alert('Please add your Anthropic API key in Settings first.');
+  if (!settings.apiKey && !settings.geminiApiKey) {
+    alert('Please add an Anthropic or Gemini API key in Settings first.');
     return;
   }
 
@@ -1390,7 +1393,6 @@ async function analyseUrl() {
     const proxyData = await proxyResp.json();
     if (!proxyData.contents) throw new Error('Page returned no content.');
 
-    // Strip tags and collapse whitespace, keep ~20 000 chars
     const text = proxyData.contents
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -1416,60 +1418,29 @@ Extract all recipe information and return ONLY a JSON object (no markdown, no ex
     {"name": "plain flour", "amount": 250},
     {"name": "butter", "amount": 120}
   ],
-  "steps": [
-    "Preheat oven to 180°C.",
-    "Mix flour and butter together."
-  ],
+  "steps": ["Preheat oven to 180°C.", "Mix flour and butter together."],
   "notes": "Any tips or notes from the recipe."
 }
 
 CRITICAL RULES:
-- ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
-- For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
-- For flour: 1 cup = 125g, 1 tbsp = 8g
-- For sugar: 1 cup = 200g, 1 tbsp = 12g
-- For butter: 1 cup = 225g, 1 tbsp = 14g
+- ALL ingredient amounts MUST be converted to GRAMS.
+- For liquids: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g. For flour: 1 cup = 125g. For sugar: 1 cup = 200g. For butter: 1 cup = 225g.
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
-- prepTime and cookTime are integers in minutes, or null if not stated
-- serves is an integer or null
+- prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.
 - origin must always be the exact source URL provided above
 - Return ONLY the JSON, nothing else.
 
 PAGE CONTENT:
 ${text}`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-20250514',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error?.message || 'API error');
-    }
-
-    const data = await resp.json();
-    const raw = data.content.map(b => b.text || '').join('').trim();
+    const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.origin = url;
 
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
-    setTimeout(() => {
-      closeModal('urlModal');
-      openAddRecipe(parsed);
-    }, 800);
+    setTimeout(() => { closeModal('urlModal'); openAddRecipe(parsed); }, 800);
 
   } catch (e) {
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}</div>`;
@@ -1529,9 +1500,8 @@ function openPasteImport() {
 async function analysePaste() {
   const text = document.getElementById('pasteInput').value.trim();
   if (!text) return;
-  const apiKey = settings.apiKey || '';
-  if (!apiKey) {
-    alert('Please add your Anthropic API key in Settings first.');
+  if (!settings.apiKey && !settings.geminiApiKey) {
+    alert('Please add an Anthropic or Gemini API key in Settings first.');
     return;
   }
 
@@ -1555,62 +1525,29 @@ Extract all recipe information and return ONLY a JSON object (no markdown, no ex
     {"name": "plain flour", "amount": 250},
     {"name": "butter", "amount": 120}
   ],
-  "steps": [
-    "Preheat oven to 180°C.",
-    "Mix flour and butter together."
-  ],
+  "steps": ["Preheat oven to 180°C.", "Mix flour and butter together."],
   "notes": "Any tips or notes from the recipe."
 }
 
 CRITICAL RULES:
-- ALL ingredient amounts MUST be converted to GRAMS. Convert cups, tablespoons, teaspoons, ounces, pounds, millilitres etc. to grams using standard cooking conversions.
-- For liquids like water, milk, oil: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g
-- For flour: 1 cup = 125g, 1 tbsp = 8g
-- For sugar: 1 cup = 200g, 1 tbsp = 12g
-- For butter: 1 cup = 225g, 1 tbsp = 14g
+- ALL ingredient amounts MUST be converted to GRAMS.
+- For liquids: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g. For flour: 1 cup = 125g. For sugar: 1 cup = 200g. For butter: 1 cup = 225g.
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
-- prepTime and cookTime are integers in minutes, or null if not stated
-- serves is an integer or null
+- prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.
 - Return ONLY the JSON, nothing else.
 
 RECIPE TEXT:
 ${text}`;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-20250514',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error?.message || 'API error');
-    }
-
-    const data = await resp.json();
-    const raw = data.content.map(b => b.text || '').join('').trim();
+    const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
-    setTimeout(() => {
-      closeModal('pasteModal');
-      openAddRecipe(parsed);
-    }, 800);
-
+    setTimeout(() => { closeModal('pasteModal'); openAddRecipe(parsed); }, 800);
   } catch (e) {
-    statusEl.innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}<br>Check your API key in Settings.</div>`;
+    statusEl.innerHTML = `<div class="ai-status" style="color:var(--accent)">⚠ ${esc(e.message)}</div>`;
   } finally {
     btn.disabled = false;
   }
@@ -1621,6 +1558,7 @@ ${text}`;
 // ═══════════════════════════════════════════════════════
 function openSettings() {
   document.getElementById('sApiKey').value = settings.apiKey || '';
+  document.getElementById('sGeminiKey').value = settings.geminiApiKey || '';
   document.getElementById('sFirebaseApiKey').value = settings.firebaseApiKey || '';
   document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
   document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
@@ -1632,6 +1570,7 @@ function openSettings() {
 
 function saveSettings() {
   settings.apiKey = document.getElementById('sApiKey').value.trim();
+  settings.geminiApiKey = document.getElementById('sGeminiKey').value.trim();
   settings.firebaseApiKey = document.getElementById('sFirebaseApiKey').value.trim();
   settings.firebaseProjectId = document.getElementById('sFirebaseProjectId').value.trim();
   settings.firebaseAppId = document.getElementById('sFirebaseAppId').value.trim();
