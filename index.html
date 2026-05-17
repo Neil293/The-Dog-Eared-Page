@@ -736,6 +736,17 @@
         <label class="form-label">Notes (optional)</label>
         <textarea class="form-textarea" id="fNotes" placeholder="Tips, variations, serving suggestions…"></textarea>
       </div>
+
+      <!-- Photo -->
+      <div class="form-group">
+        <label class="form-label">📷 Photo (optional)</label>
+        <input type="file" id="fPhotoInput" accept="image/*" style="display:none" onchange="handleRecipePhoto(this.files[0])">
+        <div id="fPhotoPreview" style="display:none;position:relative;margin-bottom:0.5rem">
+          <img id="fPhotoImg" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;display:block">
+          <button type="button" onclick="removeRecipePhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:0.9rem;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="fPhotoBtn" onclick="document.getElementById('fPhotoInput').click()">📷 Add photo</button>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
@@ -1189,13 +1200,58 @@ function editRecipeFromView() {
   stepsList.innerHTML = '';
   (r.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
   if (!(r.steps||[]).length) addStepRow();
+  setRecipePhotoPreview(r.imageData || null);
   openModal('editModal');
 }
+
+function compressImage(file, maxWidth = 900, quality = 0.72) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function setRecipePhotoPreview(dataUrl) {
+  window._pendingImageData = dataUrl || null;
+  const prev = document.getElementById('fPhotoPreview');
+  const btn = document.getElementById('fPhotoBtn');
+  if (dataUrl) {
+    document.getElementById('fPhotoImg').src = dataUrl;
+    prev.style.display = '';
+    btn.style.display = 'none';
+  } else {
+    document.getElementById('fPhotoImg').src = '';
+    prev.style.display = 'none';
+    btn.style.display = '';
+  }
+}
+
+async function handleRecipePhoto(file) {
+  if (!file) return;
+  const dataUrl = await compressImage(file);
+  setRecipePhotoPreview(dataUrl);
+  document.getElementById('fPhotoInput').value = '';
+}
+
+function removeRecipePhoto() { setRecipePhotoPreview(null); }
 
 function clearForm() {
   ['fName','fPrep','fCook','fServes','fEmoji','fNotes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('ingredientsList').innerHTML = '';
   document.getElementById('stepsList').innerHTML = '';
+  setRecipePhotoPreview(null);
 }
 
 function buildTagChecks() {
@@ -1273,7 +1329,7 @@ function saveRecipe() {
     ingTags, methodTags, ingredients, steps,
     notes: document.getElementById('fNotes').value.trim(),
     fav: editingId ? (recipes.find(x=>x.id===editingId)||{}).fav : false,
-    imageData: editingId ? (recipes.find(x=>x.id===editingId)||{}).imageData : null,
+    imageData: window._pendingImageData || null,
     updatedAt: Date.now()
   };
 
@@ -1560,8 +1616,7 @@ function prefillForm(data) {
   (data.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
   if (!(data.steps||[]).length) addStepRow();
 
-  // Save photo to recipe
-  window._pendingImageData = data.imageData || null;
+  setRecipePhotoPreview(data.imageData || null);
 }
 
 // ═══════════════════════════════════════════════════════
