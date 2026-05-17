@@ -878,9 +878,16 @@
           <label class="form-label">App ID</label>
           <input type="text" class="form-input" id="sFirebaseAppId" placeholder="1:123456:web:abc123">
         </div>
-        <p class="settings-hint">Create a free Firebase project at console.firebase.google.com → Firestore Database → Web app. Paste config values here.</p>
+        <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database and Authentication → Sign-in method → Google. Paste config values here and connect, then sign in to sync recipes across devices. Firestore rules: <code style="font-size:0.75rem;background:var(--paper-darker);padding:1px 4px;border-radius:3px">match /users/{uid}/recipes/{id} { allow read, write: if request.auth.uid == uid; }</code></p>
         <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
         <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
+        <div id="authSection" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--paper-darker)">
+          <div id="authStatus" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--ink-faint);margin-bottom:0.5rem"></div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" id="btnSignIn" onclick="signInWithGoogle()" style="display:none">🔑 Sign in with Google</button>
+            <button class="btn btn-ghost btn-sm" id="btnSignOut" onclick="signOutFirebase()" style="display:none">Sign out</button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-block">
@@ -953,6 +960,9 @@ let editingId = null;
 let viewingId = null;
 let photoBase64 = null;
 let firebaseDb = null;
+let firebaseAuth = null;
+let currentUser = null;
+let _unsubSnapshot = null;
 
 const DEFAULT_ING_TAGS = ['Beef','Chicken','Pork','Lamb','Seafood','Fish','Vegetarian','Vegan','Pasta','Rice','Eggs','Dairy'];
 const DEFAULT_METHOD_TAGS = ['Soup','Slow Cook','Bake','Roast','Fry','Grill','Stir-fry','Steam','Salad','Sauce','Dessert','Breakfast','BBQ'];
@@ -1183,8 +1193,13 @@ function toggleFav() {
 
 function deleteRecipe() {
   if (!confirm('Delete this recipe?')) return;
-  recipes = recipes.filter(x => x.id !== viewingId);
-  save();
+  const id = viewingId;
+  recipes = recipes.filter(x => x.id !== id);
+  localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+  if (firebaseDb && currentUser) {
+    const { db, doc, deleteDoc } = firebaseDb;
+    deleteDoc(doc(db, 'users', currentUser.uid, 'recipes', id)).catch(console.error);
+  }
   renderGrid();
   closeModal('viewModal');
   toast('Recipe deleted');
@@ -1728,6 +1743,7 @@ function openSettings() {
   document.getElementById('ingTagList').textContent = (settings.ingTags||[]).join(', ');
   document.getElementById('methodTagList').textContent = (settings.methodTags||[]).join(', ');
   updateFirebaseStatus();
+  updateAuthUI();
   openModal('settingsModal');
 }
 
@@ -1759,39 +1775,29 @@ async function initFirebase(silent = false) {
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     const { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 
-    const config = { apiKey, projectId, appId: appId || `1:000000:web:000000` };
+    const config = { apiKey, projectId, appId: appId || '1:000000:web:000000' };
     const existing = getApps();
     const app = existing.length ? existing[0] : initializeApp(config);
     const db = getFirestore(app);
+    const auth = getAuth(app);
     firebaseDb = { db, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot };
+    firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut };
 
-    // Load from Firestore
-    const snap = await getDocs(collection(db, 'recipes'));
-    if (!snap.empty) {
-      const fbRecipes = [];
-      snap.forEach(d => fbRecipes.push(d.data()));
-      // Merge: take firebase versions
-      const fbIds = new Set(fbRecipes.map(r => r.id));
-      const localOnly = recipes.filter(r => !fbIds.has(r.id));
-      recipes = [...fbRecipes, ...localOnly];
-      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
-      renderGrid();
-    } else {
-      // Push local to Firebase
-      await pushAllToFirebase();
-    }
-
-    setSyncDot('ok');
+    setSyncDot('');
     if (!silent) { document.getElementById('firebaseStatus').textContent = '✓ Connected'; toast('Firebase connected ✓'); }
+    updateAuthUI();
 
-    // Listen for changes
-    onSnapshot(collection(db, 'recipes'), snap => {
-      const fbRecipes = [];
-      snap.forEach(d => fbRecipes.push(d.data()));
-      recipes = fbRecipes;
-      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
-      renderGrid();
+    onAuthStateChanged(auth, async user => {
+      currentUser = user;
+      updateAuthUI();
+      if (user) {
+        await setupFirestoreForUser(user);
+      } else {
+        if (_unsubSnapshot) { _unsubSnapshot(); _unsubSnapshot = null; }
+        setSyncDot('');
+      }
     });
 
   } catch (e) {
@@ -1801,8 +1807,43 @@ async function initFirebase(silent = false) {
   }
 }
 
-async function syncToFirebase() {
+async function setupFirestoreForUser(user) {
   if (!firebaseDb) return;
+  const { db, collection, getDocs, setDoc, doc, onSnapshot } = firebaseDb;
+  const userCol = () => collection(db, 'users', user.uid, 'recipes');
+  setSyncDot('syncing');
+  try {
+    if (_unsubSnapshot) { _unsubSnapshot(); _unsubSnapshot = null; }
+    const snap = await getDocs(userCol());
+    if (!snap.empty) {
+      const fbRecipes = [];
+      snap.forEach(d => fbRecipes.push(d.data()));
+      const fbIds = new Set(fbRecipes.map(r => r.id));
+      const localOnly = recipes.filter(r => !fbIds.has(r.id));
+      recipes = [...fbRecipes, ...localOnly];
+      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+      renderGrid();
+    } else {
+      for (const r of recipes) {
+        await setDoc(doc(db, 'users', user.uid, 'recipes', r.id), r);
+      }
+    }
+    setSyncDot('ok');
+    _unsubSnapshot = onSnapshot(userCol(), snap => {
+      const fbRecipes = [];
+      snap.forEach(d => fbRecipes.push(d.data()));
+      recipes = fbRecipes;
+      localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+      renderGrid();
+    });
+  } catch (e) {
+    setSyncDot('err');
+    console.error('Firestore setup error:', e);
+  }
+}
+
+async function syncToFirebase() {
+  if (!firebaseDb || !currentUser) return;
   setSyncDot('syncing');
   try {
     await pushAllToFirebase();
@@ -1814,16 +1855,51 @@ async function syncToFirebase() {
 }
 
 async function pushAllToFirebase() {
-  if (!firebaseDb) return;
-  const { db, collection, setDoc, doc } = firebaseDb;
+  if (!firebaseDb || !currentUser) return;
+  const { db, setDoc, doc } = firebaseDb;
   for (const r of recipes) {
-    await setDoc(doc(db, 'recipes', r.id), r);
+    await setDoc(doc(db, 'users', currentUser.uid, 'recipes', r.id), r);
   }
 }
 
 function updateFirebaseStatus() {
   const statusEl = document.getElementById('firebaseStatus');
   if (statusEl) statusEl.textContent = firebaseDb ? '✓ Connected' : '';
+}
+
+async function signInWithGoogle() {
+  if (!firebaseAuth) return;
+  const { auth, GoogleAuthProvider, signInWithPopup } = firebaseAuth;
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user') toast('Sign-in failed: ' + esc(e.message));
+  }
+}
+
+async function signOutFirebase() {
+  if (!firebaseAuth) return;
+  await firebaseAuth.signOut(firebaseAuth.auth);
+  toast('Signed out');
+}
+
+function updateAuthUI() {
+  const authSection = document.getElementById('authSection');
+  if (!authSection) return;
+  if (!firebaseAuth) { authSection.style.display = 'none'; return; }
+  authSection.style.display = '';
+  const btnSignIn = document.getElementById('btnSignIn');
+  const btnSignOut = document.getElementById('btnSignOut');
+  const authStatus = document.getElementById('authStatus');
+  if (currentUser) {
+    authStatus.textContent = `Signed in as ${currentUser.displayName || currentUser.email}`;
+    btnSignIn.style.display = 'none';
+    btnSignOut.style.display = '';
+  } else {
+    authStatus.textContent = 'Not signed in — sign in to sync across devices';
+    btnSignIn.style.display = '';
+    btnSignOut.style.display = 'none';
+  }
 }
 
 function setSyncDot(state) {

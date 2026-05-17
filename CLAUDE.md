@@ -22,6 +22,9 @@ All state is managed in plain JS globals at the top of the `<script>` block:
 | `recipes` | Array of recipe objects, mirrored to `localStorage` and Firestore |
 | `settings` | API keys, Firebase config, custom tag lists — stored in `localStorage` |
 | `firebaseDb` | Firestore handle; `null` until the user connects Firebase in Settings |
+| `firebaseAuth` | Auth handle (`{ auth, GoogleAuthProvider, signInWithPopup, signOut }`); `null` until Firebase connected |
+| `currentUser` | Firebase `User` object; `null` when signed out |
+| `_unsubSnapshot` | Unsubscribe function for the active Firestore `onSnapshot` listener; `null` when not listening |
 | `editingId` / `viewingId` | ID of the recipe currently open in the edit or view modal |
 | `activeIngFilters` / `activeMethFilters` | `Set` of active filter tag strings |
 | `window._pendingImageData` | Base64 data URL of photo staged in the edit form; `null` when no photo |
@@ -49,8 +52,12 @@ All state is managed in plain JS globals at the top of the `<script>` block:
 | `fetchViaProxy(url)` | Fetches a URL through a CORS proxy chain: allorigins.win → corsproxy.io → codetabs.com |
 | `callAI(messages)` | Calls Anthropic if `settings.anthropicKey` is set, otherwise Gemini; returns the text response |
 | `analysePhoto()` | Sends the selected photo to AI via `callAI()`, parses the JSON response, calls `openAddRecipe(parsed)` |
-| `initFirebase(silent?)` | Dynamically imports Firebase SDK, connects, merges remote and local recipes, starts `onSnapshot` listener |
-| `syncToFirebase()` | Pushes all local recipes to Firestore (called after every `save()`) |
+| `initFirebase(silent?)` | Dynamically imports Firebase SDK + Auth, connects, sets up `onAuthStateChanged` listener |
+| `setupFirestoreForUser(user)` | Scopes Firestore to `users/{uid}/recipes`, merges remote/local on first sign-in, starts `onSnapshot` |
+| `signInWithGoogle()` | Opens Google sign-in popup; `onAuthStateChanged` triggers `setupFirestoreForUser` on success |
+| `signOutFirebase()` | Signs out; detaches snapshot listener and clears `currentUser` |
+| `updateAuthUI()` | Shows/hides sign-in button and user name in the Settings modal auth section |
+| `syncToFirebase()` | Pushes all local recipes to `users/{uid}/recipes` (requires `currentUser`) |
 | `exportJSON()` / `importJSON()` | Serialise/deserialise the recipes array to/from a `.json` file |
 
 ## Patterns and constraints
@@ -109,11 +116,21 @@ CSS custom properties are defined in `:root`. Use them — don't hardcode colour
 ## Firebase sync flow
 
 1. User enters config in Settings → clicks "Connect Firebase" → `initFirebase(false)`
-2. Firebase SDK imports dynamically, Firestore initialised
-3. If Firestore collection is non-empty: remote recipes merged in (remote wins on ID conflicts)
-4. If empty: local recipes pushed up
-5. `onSnapshot` listener keeps `recipes` in sync thereafter
-6. Every `save()` call triggers `syncToFirebase()` which does a full `setDoc` for every recipe
+2. Firebase SDK + Auth imports dynamically; `onAuthStateChanged` listener registered
+3. User taps "Sign in with Google" → popup → on success `onAuthStateChanged` fires with the user
+4. `setupFirestoreForUser(user)` scopes Firestore to `users/{uid}/recipes`
+5. If that collection is non-empty: remote recipes merged in (remote wins on ID conflicts)
+6. If empty: local recipes pushed up (first sign-in migration)
+7. `onSnapshot` listener keeps `recipes` in sync thereafter
+8. Every `save()` call triggers `syncToFirebase()` which does `setDoc` for every recipe in `users/{uid}/recipes`
+9. `deleteRecipe()` calls `deleteDoc` directly on `users/{uid}/recipes/{id}` instead of relying on push-all
+
+**Firestore security rules** — store recipes privately per user:
+```
+match /users/{uid}/recipes/{id} {
+  allow read, write: if request.auth != null && request.auth.uid == uid;
+}
+```
 
 ## PWA / install flow
 

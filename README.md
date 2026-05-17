@@ -18,7 +18,7 @@ A personal recipe PWA — single-file, no build tools, installable on mobile.
 - **Web image search** — searches the [Openverse](https://openverse.org) catalogue (no API key required); tap a result to set it as the recipe photo
 - **Favourites tab**
 - **📷 AI recipe import** — photograph a recipe page, AI reads it and converts all measurements to grams, pre-fills the editor
-- **Firebase Firestore sync** — real-time sync across devices, connection dot in the header
+- **Firebase Firestore sync** — real-time sync across devices with Google Sign-In; each user's recipes are stored privately under their own account
 - **Export / Import** JSON backup
 - **Installable PWA** — service worker for offline use; ⬇ install button appears automatically in browsers that support it (Chrome, Edge, Android)
 
@@ -52,13 +52,25 @@ The app supports two AI providers for the recipe import feature. Configure one i
 | Anthropic Claude | `sk-ant-…` | Best accuracy |
 | Google Gemini | `AIza…` | Free tier available at [aistudio.google.com](https://aistudio.google.com) |
 
-### Firebase setup (optional)
+### Firebase + Google Sign-In setup (optional)
 
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Add a Web app and copy the config values
+2. Add a **Web app** and copy the config values
 3. Enable **Firestore Database** in the console
-4. Set Firestore rules to `allow read, write: if true;` for personal use
-5. Paste API key, Project ID, and App ID into Settings → Firebase Sync → Connect
+4. Enable **Authentication → Sign-in method → Google**
+5. Set Firestore security rules:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid}/recipes/{id} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+6. Paste API key, Project ID, and App ID into Settings → Firebase Sync → Connect
+7. Tap **Sign in with Google** — your recipes sync to your account and appear on any device you sign in on
 
 ### Storage and Firebase free tier
 
