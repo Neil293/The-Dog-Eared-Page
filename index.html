@@ -34,11 +34,14 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { overflow-x: hidden; }
+
   body {
     font-family: var(--font-body);
     background: var(--paper);
     color: var(--ink);
     min-height: 100vh;
+    overflow-x: hidden;
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   }
@@ -47,15 +50,17 @@
   header {
     background: var(--ink);
     color: var(--paper);
-    padding: 0 1rem;
+    padding: 0 0.75rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: sticky;
     top: 0;
     z-index: 100;
+    width: 100%;
     box-shadow: 0 2px 12px var(--shadow-deep);
     min-height: 56px;
+    gap: 0.5rem;
   }
   .header-title {
     font-family: var(--font-display);
@@ -63,9 +68,14 @@
     font-style: italic;
     letter-spacing: 0.02em;
     color: var(--paper-dark);
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .header-title span { color: var(--accent-light); }
-  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .header-actions { display: flex; gap: 0.3rem; align-items: center; flex-shrink: 0; }
   .icon-btn {
     background: none; border: none; cursor: pointer;
     color: var(--paper-dark); padding: 6px; border-radius: 6px;
@@ -554,9 +564,12 @@
     .form-row, .form-row-3 { grid-template-columns: 1fr; }
     .recipe-grid { grid-template-columns: 1fr 1fr; }
     .header-title { font-size: 1.1rem; }
+    .icon-btn { padding: 5px; font-size: 1.1rem; }
+    .header-actions { gap: 0.15rem; }
   }
   @media (max-width: 360px) {
     .recipe-grid { grid-template-columns: 1fr; }
+    .icon-btn { padding: 4px; font-size: 1rem; }
   }
 
   /* Divider */
