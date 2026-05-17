@@ -18,7 +18,7 @@ A personal recipe PWA — single-file, no build tools, installable on mobile.
 - **Web image search** — searches the [Openverse](https://openverse.org) catalogue (no API key required); tap a result to set it as the recipe photo
 - **Favourites tab**
 - **📷 AI recipe import** — photograph a recipe page, AI reads it and converts all measurements to grams, pre-fills the editor
-- **Firebase Firestore sync** — real-time sync across devices with Google Sign-In; each user's recipes are stored privately under their own account
+- **Firebase Firestore sync** — real-time sync across devices with Google Sign-In; recipes, AI keys, and custom tags are all stored privately per account — sign in on a new device and everything loads automatically
 - **Export / Import** JSON backup
 - **Installable PWA** — service worker for offline use; ⬇ install button appears automatically in browsers that support it (Chrome, Edge, Android)
 
@@ -63,14 +63,14 @@ The app supports two AI providers for the recipe import feature. Configure one i
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
-       match /users/{uid}/recipes/{id} {
+       match /users/{uid}/{document=**} {
          allow read, write: if request.auth != null && request.auth.uid == uid;
        }
      }
    }
    ```
 6. Paste API key, Project ID, and App ID into Settings → Firebase Sync → Connect
-7. Tap **Sign in with Google** — your recipes sync to your account and appear on any device you sign in on
+7. Tap **Sign in with Google** — your recipes, AI keys, and custom tags sync to your account and load automatically on any device you sign in on
 
 ### Storage and Firebase free tier
 

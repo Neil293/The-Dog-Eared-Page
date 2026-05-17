@@ -1754,6 +1754,7 @@ function saveSettings() {
   settings.firebaseProjectId = document.getElementById('sFirebaseProjectId').value.trim();
   settings.firebaseAppId = document.getElementById('sFirebaseAppId').value.trim();
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
   closeModal('settingsModal');
   toast('Settings saved ✓');
 }
@@ -1774,7 +1775,7 @@ async function initFirebase(silent = false) {
   setSyncDot('syncing');
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 
     const config = { apiKey, projectId, appId: appId || '1:000000:web:000000' };
@@ -1782,7 +1783,7 @@ async function initFirebase(silent = false) {
     const app = existing.length ? existing[0] : initializeApp(config);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    firebaseDb = { db, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot };
+    firebaseDb = { db, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot };
     firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut };
 
     setSyncDot('');
@@ -1836,6 +1837,7 @@ async function setupFirestoreForUser(user) {
       localStorage.setItem(DB_KEY, JSON.stringify(recipes));
       renderGrid();
     });
+    await loadSettingsFromFirebase(user);
   } catch (e) {
     setSyncDot('err');
     console.error('Firestore setup error:', e);
@@ -1865,6 +1867,49 @@ async function pushAllToFirebase() {
 function updateFirebaseStatus() {
   const statusEl = document.getElementById('firebaseStatus');
   if (statusEl) statusEl.textContent = firebaseDb ? '✓ Connected' : '';
+}
+
+async function loadSettingsFromFirebase(user) {
+  if (!firebaseDb) return;
+  const { db, doc, getDoc, setDoc } = firebaseDb;
+  const ref = doc(db, 'users', user.uid, 'meta', 'settings');
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const remote = snap.data();
+      if (remote.apiKey) settings.apiKey = remote.apiKey;
+      if (remote.geminiApiKey) settings.geminiApiKey = remote.geminiApiKey;
+      if (remote.ingTags?.length) settings.ingTags = remote.ingTags;
+      if (remote.methodTags?.length) settings.methodTags = remote.methodTags;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      renderFilters();
+      toast('Settings loaded from your account ✓');
+    } else {
+      await setDoc(ref, {
+        apiKey: settings.apiKey || '',
+        geminiApiKey: settings.geminiApiKey || '',
+        ingTags: settings.ingTags || [],
+        methodTags: settings.methodTags || []
+      });
+    }
+  } catch (e) {
+    console.error('Settings load error:', e);
+  }
+}
+
+async function syncSettingsToFirebase() {
+  if (!firebaseDb || !currentUser) return;
+  const { db, doc, setDoc } = firebaseDb;
+  try {
+    await setDoc(doc(db, 'users', currentUser.uid, 'meta', 'settings'), {
+      apiKey: settings.apiKey || '',
+      geminiApiKey: settings.geminiApiKey || '',
+      ingTags: settings.ingTags || [],
+      methodTags: settings.methodTags || []
+    });
+  } catch (e) {
+    console.error('Settings sync error:', e);
+  }
 }
 
 async function signInWithGoogle() {
