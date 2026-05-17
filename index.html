@@ -1965,54 +1965,73 @@ function openImgSearch() {
   if (name) searchImages();
 }
 
-function searchImages() {
+async function searchImages() {
   const q = document.getElementById('imgSearchInput').value.trim();
   if (!q) return;
   const grid = document.getElementById('imgSearchResults');
   const statusEl = document.getElementById('imgSearchStatus');
-  const encoded = encodeURIComponent(q + ' food');
-  const seed = Date.now();
-  grid.innerHTML = Array.from({length: 9}, (_, i) => {
-    const url = `https://source.unsplash.com/featured/400x400/?${encoded}&sig=${seed + i}`;
-    return `<div class="img-search-thumb" onclick="selectSearchImage(this,'${url}')"><img src="${url}" loading="lazy" onerror="this.parentElement.remove()"></div>`;
-  }).join('');
-  statusEl.textContent = 'Tap an image to use it · Photos via Unsplash';
+  grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem"><span class="spinner"></span></div>`;
+  statusEl.textContent = '';
+  try {
+    const resp = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page_size=9&category=photograph`);
+    if (!resp.ok) throw new Error('Search failed');
+    const data = await resp.json();
+    if (!data.results?.length) {
+      grid.innerHTML = '';
+      statusEl.textContent = 'No images found — try different search terms.';
+      return;
+    }
+    grid.innerHTML = data.results.map(img => {
+      const thumb = esc(img.thumbnail || img.url);
+      const full = esc(img.url);
+      return `<div class="img-search-thumb" data-full="${full}" data-thumb="${thumb}" onclick="selectSearchImage(this)"><img src="${thumb}" loading="lazy" onerror="this.parentElement.remove()"></div>`;
+    }).join('');
+    statusEl.textContent = 'Tap an image to use it · Open-licensed photos';
+  } catch (e) {
+    grid.innerHTML = '';
+    statusEl.textContent = `⚠ ${esc(e.message)} — check your connection and try again.`;
+  }
 }
 
-async function selectSearchImage(el, url) {
+async function selectSearchImage(el) {
   const statusEl = document.getElementById('imgSearchStatus');
   statusEl.innerHTML = `<span class="spinner"></span> Loading…`;
   document.querySelectorAll('.img-search-thumb').forEach(t => t.style.opacity = '0.5');
   el.style.opacity = '1';
-  try {
-    const resp = await fetch(url, { redirect: 'follow' });
-    if (!resp.ok) throw new Error();
-    const blob = await resp.blob();
-    const dataUrl = await new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = e => res(e.target.result);
-      reader.onerror = rej;
-      reader.readAsDataURL(blob);
-    });
-    const compressed = await new Promise((res, rej) => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, 900 / img.width);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        res(canvas.toDataURL('image/jpeg', 0.72));
-      };
-      img.onerror = rej;
-      img.src = dataUrl;
-    });
-    setRecipePhotoPreview(compressed);
-    closeModal('imgSearchModal');
-  } catch {
+  const imageUrl = el.dataset.full || el.dataset.thumb;
+  let blob;
+  for (const attempt of [
+    () => fetch(imageUrl, { redirect: 'follow' }),
+    () => fetch(`https://corsproxy.io/?url=${encodeURIComponent(imageUrl)}`),
+  ]) {
+    try { const r = await attempt(); if (r.ok) { blob = await r.blob(); break; } } catch {}
+  }
+  if (!blob) {
     document.querySelectorAll('.img-search-thumb').forEach(t => t.style.opacity = '1');
     statusEl.textContent = '⚠ Could not load that image — try another.';
+    return;
   }
+  const dataUrl = await new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result);
+    reader.onerror = rej;
+    reader.readAsDataURL(blob);
+  });
+  const compressed = await new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 900 / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      res(canvas.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = rej;
+    img.src = dataUrl;
+  });
+  setRecipePhotoPreview(compressed);
+  closeModal('imgSearchModal');
 }
 
 // ═══════════════════════════════════════════════════════
