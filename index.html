@@ -1439,7 +1439,12 @@ async function callAI(prompt, imageBase64 = null) {
   });
   if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Gemini API error'); }
   const data = await resp.json();
-  return data.candidates[0].content.parts[0].text.trim();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    const reason = data.candidates?.[0]?.finishReason || 'no content returned';
+    throw new Error(`Gemini returned no result (${reason}) — try a clearer photo or use Anthropic instead`);
+  }
+  return text.trim();
 }
 
 async function analysePhoto() {
