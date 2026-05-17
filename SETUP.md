@@ -56,6 +56,7 @@ The AI will:
 | Filter by method | Tap tags (Soup, Slow Cook…) under search |
 | Search | Type in search bar — searches name, ingredients, tags |
 | Favourites | Open recipe → ☆ Favourite, then see in Favourites tab |
+| Origin | Add/edit recipe → Origin field — book, author, or URL; URLs become links |
 | Edit recipe | Open recipe → ✏ Edit |
 | Export all | ⚙ Settings → Export JSON |
 | Import backup | ⚙ Settings → Import JSON |
