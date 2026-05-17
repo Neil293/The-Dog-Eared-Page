@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <title>The Recipe Book</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
@@ -15,14 +16,14 @@
     --paper: #f5efe6;
     --paper-dark: #ede3d4;
     --paper-darker: #e0d0b8;
-    --ink: #2c1a0e;
-    --ink-light: #5c3d1e;
-    --ink-faint: #9a7a5a;
-    --accent: #b85c38;
-    --accent-dark: #8c3e20;
-    --accent-light: #d4845a;
-    --green: #5a7a3a;
-    --green-light: #7a9a5a;
+    --ink: #1e0f06;
+    --ink-light: #4a2e0e;
+    --ink-faint: #6b4a22;
+    --accent: #a34d2a;
+    --accent-dark: #7a3218;
+    --accent-light: #c8703f;
+    --green: #3d6025;
+    --green-light: #5a7a3a;
     --cream: #faf6ef;
     --shadow: rgba(44,26,14,0.15);
     --shadow-deep: rgba(44,26,14,0.3);
@@ -131,14 +132,27 @@
   .search-input:focus { outline: none; border-color: var(--accent); }
   .search-input::placeholder { color: var(--ink-faint); font-style: italic; }
 
-  .filter-section { margin-bottom: 1rem; }
+  .filter-section { margin-bottom: 0.5rem; }
   .filter-label {
     font-family: var(--font-hand);
     font-size: 0.9rem;
     color: var(--ink-faint);
     margin-bottom: 0.4rem;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.2rem 0;
   }
+  .filter-label .chevron {
+    margin-left: auto;
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    opacity: 0.6;
+  }
+  .filter-section.collapsed .chevron { transform: rotate(-90deg); }
+  .filter-section.collapsed .tags-row { display: none; }
   .tags-row {
     display: flex; flex-wrap: wrap; gap: 0.4rem;
   }
@@ -574,6 +588,7 @@
     <span title="Firebase sync status">
       <span class="sync-dot" id="syncDot"></span>
     </span>
+    <button class="icon-btn" id="installBtn" title="Install app" onclick="installApp()" style="display:none">⬇</button>
     <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
     <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
     <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
@@ -596,14 +611,14 @@
   </div>
 
   <!-- Ingredient filters -->
-  <div class="filter-section">
-    <span class="filter-label">🥩 By ingredient</span>
+  <div class="filter-section collapsed" id="ingFilterSection">
+    <span class="filter-label" onclick="toggleFilterSection('ingFilterSection')">🥩 By ingredient<span class="chevron">▼</span></span>
     <div class="tags-row" id="ingFilterRow"></div>
   </div>
 
   <!-- Method filters -->
-  <div class="filter-section">
-    <span class="filter-label">🍲 By method</span>
+  <div class="filter-section collapsed" id="methFilterSection">
+    <span class="filter-label" onclick="toggleFilterSection('methFilterSection')">🍲 By method<span class="chevron">▼</span></span>
     <div class="tags-row" id="methodFilterRow"></div>
   </div>
 
@@ -921,6 +936,11 @@ function save() {
 // ═══════════════════════════════════════════════════════
 //  RENDER FILTERS
 // ═══════════════════════════════════════════════════════
+function toggleFilterSection(id) {
+  const section = document.getElementById(id);
+  section.classList.toggle('collapsed');
+}
+
 function renderFilters() {
   const ingRow = document.getElementById('ingFilterRow');
   const methRow = document.getElementById('methodFilterRow');
@@ -945,9 +965,26 @@ function renderFilters() {
 
 function toggleFilter(type, tag, el) {
   const set = type === 'ing' ? activeIngFilters : activeMethFilters;
+  const sectionId = type === 'ing' ? 'ingFilterSection' : 'methFilterSection';
   if (set.has(tag)) { set.delete(tag); el.classList.remove('active'); }
-  else { set.add(tag); el.classList.add('active'); }
+  else {
+    set.add(tag);
+    el.classList.add('active');
+    document.getElementById(sectionId).classList.remove('collapsed');
+  }
+  updateFilterLabels();
   renderGrid();
+}
+
+function updateFilterLabels() {
+  const ingSection = document.getElementById('ingFilterSection');
+  const methSection = document.getElementById('methFilterSection');
+  const ingLabel = ingSection.querySelector('.filter-label');
+  const methLabel = methSection.querySelector('.filter-label');
+  const ingCount = activeIngFilters.size;
+  const methCount = activeMethFilters.size;
+  ingLabel.childNodes[0].textContent = ingCount ? `🥩 By ingredient (${ingCount}) ` : '🥩 By ingredient';
+  methLabel.childNodes[0].textContent = methCount ? `🍲 By method (${methCount}) ` : '🍲 By method';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1785,6 +1822,33 @@ function getSampleRecipes() {
     notes: 'The secret is simmering slowly — never boiling hard.',
     fav: false, updatedAt: Date.now()
   }];
+}
+
+// ═══════════════════════════════════════════════════════
+//  PWA
+// ═══════════════════════════════════════════════════════
+let _installPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installPrompt = e;
+  document.getElementById('installBtn').style.display = '';
+});
+
+window.addEventListener('appinstalled', () => {
+  _installPrompt = null;
+  document.getElementById('installBtn').style.display = 'none';
+});
+
+async function installApp() {
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  const { outcome } = await _installPrompt.userChoice;
+  if (outcome === 'accepted') _installPrompt = null;
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
 }
 
 // ═══════════════════════════════════════════════════════

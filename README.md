@@ -17,7 +17,7 @@ A personal recipe PWA — single-file, no build tools, installable on mobile.
 - **📷 Photo import** — photograph a recipe page, Claude AI reads it and converts all measurements to grams, pre-fills the editor
 - **Firebase Firestore sync** — real-time sync across devices, connection dot in the header
 - **Export / Import** JSON backup
-- **Installable PWA** via `manifest.json`
+- **Installable PWA** — service worker for offline use; ⬇ install button appears automatically in browsers that support it (Chrome, Edge, Android)
 
 ## Stack
 
@@ -51,6 +51,8 @@ No build step. No bundler. No dependencies to install.
 ```
 index.html      # Entire application
 manifest.json   # PWA manifest
+sw.js           # Service worker — offline caching, enables install
+icon.svg        # App icon
 ```
 
 ## Local development
