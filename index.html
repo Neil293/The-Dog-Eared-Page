@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <title>The Recipe Book</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
@@ -587,6 +588,7 @@
     <span title="Firebase sync status">
       <span class="sync-dot" id="syncDot"></span>
     </span>
+    <button class="icon-btn" id="installBtn" title="Install app" onclick="installApp()" style="display:none">⬇</button>
     <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
     <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
     <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
@@ -1820,6 +1822,33 @@ function getSampleRecipes() {
     notes: 'The secret is simmering slowly — never boiling hard.',
     fav: false, updatedAt: Date.now()
   }];
+}
+
+// ═══════════════════════════════════════════════════════
+//  PWA
+// ═══════════════════════════════════════════════════════
+let _installPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installPrompt = e;
+  document.getElementById('installBtn').style.display = '';
+});
+
+window.addEventListener('appinstalled', () => {
+  _installPrompt = null;
+  document.getElementById('installBtn').style.display = 'none';
+});
+
+async function installApp() {
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  const { outcome } = await _installPrompt.userChoice;
+  if (outcome === 'accepted') _installPrompt = null;
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
 }
 
 // ═══════════════════════════════════════════════════════
