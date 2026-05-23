@@ -58,6 +58,8 @@ All state is managed in plain JS globals at the top of the `<script>` block:
 | `signOutFirebase()` | Signs out; detaches snapshot listener and clears `currentUser` |
 | `updateAuthUI()` | Shows/hides sign-in button and user name in the Settings modal auth section |
 | `syncToFirebase()` | Pushes all local recipes to `users/{uid}/recipes` (requires `currentUser`) |
+| `loadSettingsFromFirebase(user)` | Reads `users/{uid}/meta/settings`; merges API keys and tag lists into local settings; pushes local settings on first sign-in |
+| `syncSettingsToFirebase()` | Writes API keys and tag lists to `users/{uid}/meta/settings`; called from `saveSettings()` |
 | `exportJSON()` / `importJSON()` | Serialise/deserialise the recipes array to/from a `.json` file |
 
 ## Patterns and constraints
@@ -125,12 +127,14 @@ CSS custom properties are defined in `:root`. Use them — don't hardcode colour
 8. Every `save()` call triggers `syncToFirebase()` which does `setDoc` for every recipe in `users/{uid}/recipes`
 9. `deleteRecipe()` calls `deleteDoc` directly on `users/{uid}/recipes/{id}` instead of relying on push-all
 
-**Firestore security rules** — store recipes privately per user:
+**Firestore security rules** — wildcard covers both `recipes` and `meta/settings`:
 ```
-match /users/{uid}/recipes/{id} {
+match /users/{uid}/{document=**} {
   allow read, write: if request.auth != null && request.auth.uid == uid;
 }
 ```
+
+**Settings sync**: only `apiKey`, `geminiApiKey`, `ingTags`, and `methodTags` are synced — Firebase config fields are device-specific and never sent to Firestore.
 
 ## PWA / install flow
 
