@@ -1597,6 +1597,29 @@ async function fetchViaProxy(url) {
   throw new Error('Could not fetch the page — try pasting the recipe text instead (📋 button).');
 }
 
+function extractOgImage(html, baseUrl) {
+  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+           || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+           || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+           || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+  if (!m) return null;
+  const src = m[1];
+  if (src.startsWith('http')) return src;
+  try { return new URL(src, baseUrl).href; } catch { return null; }
+}
+
+async function fetchAndCompressUrl(url) {
+  let blob;
+  for (const attempt of [
+    () => fetch(url, { redirect: 'follow' }),
+    () => fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`),
+  ]) {
+    try { const r = await attempt(); if (r.ok) { blob = await r.blob(); break; } } catch {}
+  }
+  if (!blob) return null;
+  return compressImage(blob);
+}
+
 async function analyseUrl() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
@@ -1613,6 +1636,7 @@ async function analyseUrl() {
 
   try {
     const html = await fetchViaProxy(url);
+    const ogImgUrl = extractOgImage(html, url);
 
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -1661,6 +1685,14 @@ ${text}`;
     const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.origin = url;
+
+    if (ogImgUrl) {
+      statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Fetching recipe photo…</div>`;
+      try {
+        const dataUrl = await fetchAndCompressUrl(ogImgUrl);
+        if (dataUrl) parsed.imageData = dataUrl;
+      } catch {}
+    }
 
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
     setTimeout(() => { closeModal('urlModal'); openAddRecipe(parsed); }, 800);

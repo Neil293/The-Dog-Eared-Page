@@ -1,7 +1,7 @@
 {
   "name": "The Recipe Book",
   "short_name": "Recipe Book",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Personal recipe organiser with photo import and Firebase sync",
   "start_url": "./index.html",
   "display": "standalone",
