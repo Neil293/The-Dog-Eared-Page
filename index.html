@@ -731,14 +731,20 @@
       <div class="form-group">
         <label class="form-label">Ingredients (grams)</label>
         <div class="ingredients-list" id="ingredientsList"></div>
-        <button class="btn-add-row" onclick="addIngredientRow()">+ Add ingredient</button>
+        <div style="display:flex;gap:0.4rem">
+          <button class="btn-add-row" style="flex:1" onclick="addIngredientRow()">+ Add ingredient</button>
+          <button class="btn-add-row" style="flex:1" onclick="addIngredientSection()">+ Section</button>
+        </div>
       </div>
 
       <!-- Steps -->
       <div class="form-group">
         <label class="form-label">Method / Steps</label>
         <div class="steps-list" id="stepsList"></div>
-        <button class="btn-add-row" onclick="addStepRow()">+ Add step</button>
+        <div style="display:flex;gap:0.4rem">
+          <button class="btn-add-row" style="flex:1" onclick="addStepRow()">+ Add step</button>
+          <button class="btn-add-row" style="flex:1" onclick="addStepSection()">+ Section</button>
+        </div>
       </div>
 
       <!-- Notes -->
@@ -1063,7 +1069,7 @@ function renderGrid() {
   let list = recipes.filter(r => {
     if (activeTab === 'favourites' && !r.fav) return false;
     if (q) {
-      const hay = (r.name + ' ' + (r.ingTags||[]).join(' ') + ' ' + (r.methodTags||[]).join(' ') + ' ' + (r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
+      const hay = (r.name + ' ' + (r.ingTags||[]).join(' ') + ' ' + (r.methodTags||[]).join(' ') + ' ' + (r.ingredients||[]).map(i=>i.name||'').join(' ')).toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (activeIngFilters.size) {
@@ -1158,7 +1164,8 @@ function viewRecipe(id) {
 
   if (r.ingredients && r.ingredients.length) {
     body += `<div class="recipe-section-title">Ingredients</div>`;
-    body += r.ingredients.filter(i=>i.name).map(i => {
+    body += r.ingredients.filter(i => i.name || i.section).map(i => {
+      if (i.section) return `<div style="font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--accent);padding:0.5rem 0 0.15rem;margin-top:0.25rem;border-bottom:1px dashed var(--paper-darker)">${esc(i.section)}</div>`;
       const amt = i.amount ? `<span class="ing-amount">${i.amount}g</span>` : '';
       return `<div class="ingredient-view-row"><span class="ing-name">${esc(i.name)}</span>${amt}</div>`;
     }).join('');
@@ -1166,11 +1173,13 @@ function viewRecipe(id) {
 
   if (r.steps && r.steps.length) {
     body += `<div class="recipe-section-title">Method</div>`;
-    body += r.steps.filter(s=>s).map((s, i) => `
-      <div class="step-view">
-        <div class="step-view-num">${i+1}.</div>
-        <div class="step-view-text">${esc(s)}</div>
-      </div>`).join('');
+    let stepNum = 0;
+    body += r.steps.filter(s => s).map(s => {
+      if (typeof s === 'object' && s.section) return `<div style="font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--accent);padding:0.5rem 0 0.15rem;margin-top:0.3rem;border-bottom:1px dashed var(--paper-darker)">${esc(s.section)}</div>`;
+      stepNum++;
+      const text = typeof s === 'string' ? s : (s.text || '');
+      return `<div class="step-view"><div class="step-view-num">${stepNum}.</div><div class="step-view-text">${esc(text)}</div></div>`;
+    }).join('');
   }
 
   if (r.notes) {
@@ -1243,11 +1252,12 @@ function editRecipeFromView() {
   });
   const ingList = document.getElementById('ingredientsList');
   ingList.innerHTML = '';
-  (r.ingredients||[]).forEach(i => addIngredientRow(i.name, i.amount));
+  (r.ingredients||[]).forEach(i => i.section !== undefined ? addIngredientSection(i.section) : addIngredientRow(i.name, i.amount));
   if (!(r.ingredients||[]).length) addIngredientRow();
   const stepsList = document.getElementById('stepsList');
   stepsList.innerHTML = '';
-  (r.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
+  stepCount = 0;
+  (r.steps||[]).forEach(s => (typeof s === 'object' && s.section !== undefined) ? addStepSection(s.section) : addStepRow(typeof s === 'string' ? s : ''));
   if (!(r.steps||[]).length) addStepRow();
   setRecipePhotoPreview(r.imageData || null);
   openModal('editModal');
@@ -1297,6 +1307,7 @@ function clearForm() {
   ['fName','fPrep','fCook','fServes','fEmoji','fNotes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('ingredientsList').innerHTML = '';
   document.getElementById('stepsList').innerHTML = '';
+  stepCount = 0;
   setRecipePhotoPreview(null);
 }
 
@@ -1336,6 +1347,28 @@ function addStepRow(text='', num=null) {
   list.appendChild(row);
 }
 
+function addIngredientSection(title = '') {
+  const list = document.getElementById('ingredientsList');
+  const row = document.createElement('div');
+  row.className = 'ingredient-row';
+  row.innerHTML = `
+    <input type="text" class="form-input" placeholder="Section heading (e.g. For the sauce)" value="${esc(title)}" data-section="true"
+      style="grid-column:1/3;font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--ink-light)">
+    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+function addStepSection(title = '') {
+  const list = document.getElementById('stepsList');
+  const row = document.createElement('div');
+  row.className = 'step-row';
+  row.innerHTML = `
+    <input type="text" class="form-input" placeholder="Section heading (e.g. Make the sauce)" value="${esc(title)}" data-section="true"
+      style="grid-column:1/3;font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--ink-light)">
+    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+  list.appendChild(row);
+}
+
 function addCustomTag(type) {
   const input = document.getElementById(type === 'ing' ? 'customIngTag' : 'customMethodTag');
   const val = input.value.trim();
@@ -1359,11 +1392,18 @@ function saveRecipe() {
   const methodTags = [...document.querySelectorAll('#methodTagChecks input:checked')].map(cb => cb.value);
 
   const ingredients = [...document.querySelectorAll('#ingredientsList .ingredient-row')].map(row => {
+    const sec = row.querySelector('input[data-section]');
+    if (sec) { const t = sec.value.trim(); return t ? { section: t } : null; }
     const inputs = row.querySelectorAll('input');
     return { name: inputs[0].value.trim(), amount: parseFloat(inputs[1].value) || '' };
-  }).filter(i => i.name);
+  }).filter(i => i && (i.section || i.name));
 
-  const steps = [...document.querySelectorAll('#stepsList textarea')].map(t => t.value.trim()).filter(Boolean);
+  const steps = [...document.querySelectorAll('#stepsList .step-row')].map(row => {
+    const sec = row.querySelector('input[data-section]');
+    if (sec) { const t = sec.value.trim(); return t ? { section: t } : null; }
+    const ta = row.querySelector('textarea');
+    return ta?.value.trim() || null;
+  }).filter(Boolean);
 
   const r = {
     id: editingId || 'r_' + Date.now(),
@@ -1495,6 +1535,8 @@ CRITICAL RULES:
 - For sugar: 1 cup = 200g, 1 tbsp = 12g
 - For butter: 1 cup = 225g, 1 tbsp = 14g
 - For items that can't easily be grams (e.g. "2 eggs"), convert to approximate grams (2 eggs = 100g)
+- If the recipe has named ingredient groups (e.g. "For the sauce", "For the marinade"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
+- If the recipe has named method stages (e.g. "To make the sauce"), insert a {"section": "Stage name"} object before those steps in the steps array. Steps are otherwise plain strings.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated
@@ -1605,6 +1647,8 @@ CRITICAL RULES:
 - ALL ingredient amounts MUST be converted to GRAMS.
 - For liquids: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g. For flour: 1 cup = 125g. For sugar: 1 cup = 200g. For butter: 1 cup = 225g.
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
+- If the recipe has named ingredient groups (e.g. "For the sauce"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
+- If the recipe has named method stages, insert a {"section": "Stage name"} object before those steps. Steps are otherwise plain strings.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.
@@ -1653,13 +1697,13 @@ function prefillForm(data) {
 
   const ingList = document.getElementById('ingredientsList');
   ingList.innerHTML = '';
-  (data.ingredients||[]).forEach(i => addIngredientRow(i.name, i.amount));
+  (data.ingredients||[]).forEach(i => i.section !== undefined ? addIngredientSection(i.section) : addIngredientRow(i.name, i.amount));
   if (!(data.ingredients||[]).length) addIngredientRow();
 
   const stepsList = document.getElementById('stepsList');
   stepsList.innerHTML = '';
   stepCount = 0;
-  (data.steps||[]).forEach((s, idx) => addStepRow(s, idx+1));
+  (data.steps||[]).forEach(s => (typeof s === 'object' && s.section !== undefined) ? addStepSection(s.section) : addStepRow(typeof s === 'string' ? s : ''));
   if (!(data.steps||[]).length) addStepRow();
 
   setRecipePhotoPreview(data.imageData || null);
@@ -1711,6 +1755,8 @@ CRITICAL RULES:
 - ALL ingredient amounts MUST be converted to GRAMS.
 - For liquids: 1 cup = 240g, 1 tbsp = 15g, 1 tsp = 5g. For flour: 1 cup = 125g. For sugar: 1 cup = 200g. For butter: 1 cup = 225g.
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
+- If the recipe has named ingredient groups (e.g. "For the sauce"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
+- If the recipe has named method stages, insert a {"section": "Stage name"} object before those steps. Steps are otherwise plain strings.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.

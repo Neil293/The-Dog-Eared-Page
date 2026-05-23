@@ -13,7 +13,7 @@ A personal recipe PWA — single-file, no build tools, installable on mobile.
 - **Collapsible filter sections** — ingredient and method filters collapse/expand to save screen space on mobile
 - **Live search** across recipe name, ingredient names, and tags
 - **Simultaneous tag filtering** — ingredient and method filters stack
-- **Add / edit recipes** with a form that supports custom tags
+- **Add / edit recipes** with a form that supports custom tags and **ingredient/step sections** (e.g. "For the chicken", "For the sauce")
 - **Recipe photos** — add a photo to any recipe from your camera roll or by searching the web; images are compressed browser-side (max 900 px wide, 72 % JPEG) before storage
 - **Web image search** — searches the [Openverse](https://openverse.org) catalogue (no API key required); tap a result to set it as the recipe photo
 - **Favourites tab**
