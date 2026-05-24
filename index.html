@@ -121,6 +121,24 @@
     opacity: 1;
   }
   .nav-tab:hover { opacity: 1; }
+  .nav-btn {
+    padding: 10px 14px;
+    font-family: var(--font-hand);
+    font-size: 0.9rem;
+    color: var(--paper-dark);
+    cursor: pointer;
+    border: none;
+    background: none;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    opacity: 0.75;
+    margin-left: auto;
+  }
+  .nav-btn:first-of-type { margin-left: auto; }
+  .nav-btn + .nav-btn { margin-left: 0; }
+  .nav-btn:hover { opacity: 1; }
+  .nav-btn.active { color: #fff; opacity: 1; border-bottom-color: var(--accent-light); }
 
   /* ─── MAIN LAYOUT ─── */
   main { max-width: 960px; margin: 0 auto; padding: 1rem; }
@@ -616,7 +634,7 @@
   }
 
   .section-header {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: flex-end;
     margin-bottom: 1rem;
   }
   .section-count {
@@ -658,6 +676,8 @@
 <nav id="navTabs">
   <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
   <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
+  <button class="nav-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
+  <button class="nav-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
 </nav>
 
 <!-- ═══════════════════ MAIN ═══════════════════ -->
@@ -669,10 +689,6 @@
 
   <!-- Grid -->
   <div class="section-header">
-    <div style="display:flex;gap:0.4rem">
-      <button class="filter-quick-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
-      <button class="filter-quick-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
-    </div>
     <span class="section-count" id="recipeCount"></span>
   </div>
   <div class="recipe-grid" id="recipeGrid"></div>
