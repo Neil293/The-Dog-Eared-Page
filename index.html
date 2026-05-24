@@ -1103,7 +1103,7 @@ function renderGrid() {
   grid.innerHTML = list.map(r => {
     const prep = r.prepTime ? `⏱ ${r.prepTime}m prep` : '';
     const cook = r.cookTime ? `🔥 ${r.cookTime}m cook` : '';
-    const allTags = [...(r.ingTags||[]).map(t=>`<span class="tag-pill">${t}</span>`), ...(r.methodTags||[]).map(t=>`<span class="tag-pill method">${t}</span>`)].slice(0,4).join('');
+    const allTags = [...(r.ingTags||[]).map(t=>`<span class="tag-pill">${t}</span>`), ...(r.methodTags||[]).map(t=>`<span class="tag-pill method">${t}</span>`)].join('');
     const emoji = r.emoji || guessEmoji(r);
     const imgHtml = r.imageData
       ? `<div class="card-img"><img src="${r.imageData}" alt="${esc(r.name)}"></div>`
