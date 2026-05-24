@@ -1173,7 +1173,7 @@
     </div>
     <div class="modal-body">
       <p style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-bottom:1rem">Scan this on a new device to copy all settings</p>
-      <canvas id="qrCanvas" style="max-width:100%;border-radius:8px"></canvas>
+      <div id="qrCanvas" style="display:flex;justify-content:center"></div>
     </div>
   </div>
 </div>
@@ -2728,17 +2728,25 @@ async function showSetupQR() {
     ak: settings.apiKey || '',
     gk: settings.geminiApiKey || ''
   });
+  const container = document.getElementById('qrCanvas');
+  container.innerHTML = '';
   openModal('qrDisplayModal');
-  const canvas = document.getElementById('qrCanvas');
   if (!window.QRCode) {
     await new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
       s.onload = res; s.onerror = rej;
       document.head.appendChild(s);
     });
   }
-  await QRCode.toCanvas(canvas, payload, { width: 280, margin: 2, color: { dark: '#3b2a1a', light: '#fdf6ee' } });
+  new QRCode(container, {
+    text: payload,
+    width: 256,
+    height: 256,
+    colorDark: '#3b2a1a',
+    colorLight: '#fdf6ee',
+    correctLevel: QRCode.CorrectLevel.L
+  });
 }
 
 let _qrScanStream = null;
