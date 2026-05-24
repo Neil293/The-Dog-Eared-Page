@@ -98,8 +98,7 @@
   nav {
     background: var(--ink-light);
     display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
+    justify-content: space-between;
   }
   nav::-webkit-scrollbar { display: none; }
   .nav-tab {
@@ -134,7 +133,8 @@
     transition: all 0.2s;
     opacity: 0.75;
   }
-  #btnRecentFilter { margin-left: auto; }
+  .nav-tabs-group { display: flex; }
+  .nav-btns-group { display: flex; }
   .nav-btn:hover { opacity: 1; }
   .nav-btn.active { color: #fff; opacity: 1; border-bottom-color: var(--accent-light); }
 
@@ -585,6 +585,33 @@
     border-bottom: 1.5px solid var(--paper-darker);
   }
   .settings-block { margin-bottom: 1.5rem; }
+  .settings-tabs { display: flex; border-bottom: 2px solid var(--paper-darker); margin-bottom: 1.2rem; }
+  .settings-tab-btn {
+    font-family: var(--font-hand); font-size: 0.95rem; padding: 7px 16px;
+    border: none; background: none; cursor: pointer; color: var(--ink-faint);
+    border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s;
+  }
+  .settings-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .settings-tab-panel { display: none; }
+  .settings-tab-panel.active { display: block; }
+  .tag-manage-row {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 5px 0; border-bottom: 1px solid var(--paper-darker);
+  }
+  .tag-manage-row:last-child { border-bottom: none; }
+  .tag-manage-name {
+    flex: 1; font-family: var(--font-hand); font-size: 0.9rem; color: var(--ink);
+  }
+  .tag-manage-input {
+    flex: 1; font-family: var(--font-hand); font-size: 0.9rem;
+    border: 1px solid var(--accent-light); border-radius: 4px; padding: 2px 6px;
+  }
+  .tag-manage-btn {
+    font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--paper-darker);
+    background: var(--paper); cursor: pointer; font-family: var(--font-hand); color: var(--ink-light);
+  }
+  .tag-manage-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tag-manage-btn.del:hover { border-color: #c0392b; color: #c0392b; }
   .settings-hint {
     font-size: 0.8rem;
     color: var(--ink-faint);
@@ -672,10 +699,14 @@
 
 <!-- ═══════════════════ NAV TABS ═══════════════════ -->
 <nav id="navTabs">
-  <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
-  <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
-  <button class="nav-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
-  <button class="nav-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
+  <div class="nav-tabs-group">
+    <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
+    <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
+  </div>
+  <div class="nav-btns-group">
+    <button class="nav-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
+    <button class="nav-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
+  </div>
 </nav>
 
 <!-- ═══════════════════ MAIN ═══════════════════ -->
@@ -914,65 +945,85 @@
       <button class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="settings-block">
-        <div class="settings-section-title">🤖 AI Import</div>
-        <div class="form-group">
-          <label class="form-label">Anthropic API Key</label>
-          <input type="password" class="form-input" id="sApiKey" placeholder="sk-ant-…">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Google Gemini API Key <span style="font-family:var(--font-hand);font-size:0.8rem;color:var(--green)">(free tier available)</span></label>
-          <input type="password" class="form-input" id="sGeminiKey" placeholder="AIza…">
-        </div>
-        <p class="settings-hint">Keys are stored locally only, never shared. Add either or both — Anthropic is used when set, otherwise Gemini. Get a free Gemini key at aistudio.google.com.</p>
+      <div class="settings-tabs">
+        <button class="settings-tab-btn active" onclick="openSettingsTab('general',this)">General</button>
+        <button class="settings-tab-btn" onclick="openSettingsTab('tags',this)">🏷 Tags</button>
       </div>
 
-      <div class="settings-block">
-        <div class="settings-section-title">🔥 Firebase Sync</div>
-        <div class="form-group">
-          <label class="form-label">API Key</label>
-          <input type="text" class="form-input" id="sFirebaseApiKey" placeholder="AIza…">
+      <!-- General tab -->
+      <div class="settings-tab-panel active" id="stab-general">
+        <div class="settings-block">
+          <div class="settings-section-title">🤖 AI Import</div>
+          <div class="form-group">
+            <label class="form-label">Anthropic API Key</label>
+            <input type="password" class="form-input" id="sApiKey" placeholder="sk-ant-…">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Google Gemini API Key <span style="font-family:var(--font-hand);font-size:0.8rem;color:var(--green)">(free tier available)</span></label>
+            <input type="password" class="form-input" id="sGeminiKey" placeholder="AIza…">
+          </div>
+          <p class="settings-hint">Keys are stored locally only, never shared. Add either or both — Anthropic is used when set, otherwise Gemini. Get a free Gemini key at aistudio.google.com.</p>
         </div>
-        <div class="form-group">
-          <label class="form-label">Project ID</label>
-          <input type="text" class="form-input" id="sFirebaseProjectId" placeholder="my-recipe-app">
+
+        <div class="settings-block">
+          <div class="settings-section-title">🔥 Firebase Sync</div>
+          <div class="form-group">
+            <label class="form-label">API Key</label>
+            <input type="text" class="form-input" id="sFirebaseApiKey" placeholder="AIza…">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Project ID</label>
+            <input type="text" class="form-input" id="sFirebaseProjectId" placeholder="my-recipe-app">
+          </div>
+          <div class="form-group">
+            <label class="form-label">App ID</label>
+            <input type="text" class="form-input" id="sFirebaseAppId" placeholder="1:123456:web:abc123">
+          </div>
+          <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database and Authentication → Sign-in method → Google. Paste config values here and connect, then sign in to sync recipes across devices.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
+          <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
+          <div id="authSection" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--paper-darker)">
+            <div id="authStatus" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--ink-faint);margin-bottom:0.5rem"></div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" id="btnSignIn" onclick="signInWithGoogle()" style="display:none">🔑 Sign in with Google</button>
+              <button class="btn btn-ghost btn-sm" id="btnSignOut" onclick="signOutFirebase()" style="display:none">Sign out</button>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">App ID</label>
-          <input type="text" class="form-input" id="sFirebaseAppId" placeholder="1:123456:web:abc123">
-        </div>
-        <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database and Authentication → Sign-in method → Google. Paste config values here and connect, then sign in to sync recipes across devices. Firestore rules: <code style="font-size:0.75rem;background:var(--paper-darker);padding:1px 4px;border-radius:3px">match /users/{uid}/recipes/{id} { allow read, write: if request.auth.uid == uid; }</code></p>
-        <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
-        <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
-        <div id="authSection" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--paper-darker)">
-          <div id="authStatus" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--ink-faint);margin-bottom:0.5rem"></div>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" id="btnSignIn" onclick="signInWithGoogle()" style="display:none">🔑 Sign in with Google</button>
-            <button class="btn btn-ghost btn-sm" id="btnSignOut" onclick="signOutFirebase()" style="display:none">Sign out</button>
+
+        <div class="settings-block">
+          <div class="settings-section-title">📤 Data</div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export JSON</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFileInput').click()">Import JSON</button>
+            <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importJSON(this)">
           </div>
         </div>
       </div>
 
-      <div class="settings-block">
-        <div class="settings-section-title">📤 Data</div>
-        <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export JSON</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFileInput').click()">Import JSON</button>
-          <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importJSON(this)">
+      <!-- Tags tab -->
+      <div class="settings-tab-panel" id="stab-tags">
+        <div class="settings-block">
+          <div class="settings-section-title">🥩 Ingredient Tags</div>
+          <div id="ingTagManager"></div>
+          <div style="display:flex;gap:0.4rem;margin-top:0.75rem">
+            <input type="text" class="form-input" id="newIngTag" placeholder="New tag…" style="flex:1" onkeydown="if(event.key==='Enter')addTagFromManager('ing')">
+            <button class="btn btn-ghost btn-sm" onclick="addTagFromManager('ing')">Add</button>
+          </div>
         </div>
-      </div>
-
-      <div class="settings-block">
-        <div class="settings-section-title">🏷 Manage Tags</div>
-        <p style="font-family:var(--font-hand);font-size:0.88rem;color:var(--ink-faint)">
-          Ingredient tags: <span id="ingTagList"></span><br>
-          Method tags: <span id="methodTagList"></span>
-        </p>
+        <div class="settings-block">
+          <div class="settings-section-title">🍲 Method Tags</div>
+          <div id="methTagManager"></div>
+          <div style="display:flex;gap:0.4rem;margin-top:0.75rem">
+            <input type="text" class="form-input" id="newMethTag" placeholder="New tag…" style="flex:1" onkeydown="if(event.key==='Enter')addTagFromManager('meth')">
+            <button class="btn btn-ghost btn-sm" onclick="addTagFromManager('meth')">Add</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Cancel</button>
-      <button class="btn btn-accent" onclick="saveSettings()">Save Settings</button>
+      <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Close</button>
+      <button class="btn btn-accent" id="settingsSaveBtn" onclick="saveSettings()">Save Settings</button>
     </div>
   </div>
 </div>
@@ -1958,11 +2009,93 @@ function openSettings() {
   document.getElementById('sFirebaseApiKey').value = settings.firebaseApiKey || '';
   document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
   document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
-  document.getElementById('ingTagList').textContent = (settings.ingTags||[]).join(', ');
-  document.getElementById('methodTagList').textContent = (settings.methodTags||[]).join(', ');
+  openSettingsTab('general', document.querySelector('.settings-tab-btn'));
   updateFirebaseStatus();
   updateAuthUI();
   openModal('settingsModal');
+}
+
+function openSettingsTab(tab, btn) {
+  document.querySelectorAll('.settings-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('stab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('settingsSaveBtn').style.display = tab === 'general' ? '' : 'none';
+  if (tab === 'tags') renderTagManager();
+}
+
+function renderTagManager() {
+  ['ing', 'meth'].forEach(type => {
+    const tags = type === 'ing' ? settings.ingTags : settings.methodTags;
+    const container = document.getElementById(type === 'ing' ? 'ingTagManager' : 'methTagManager');
+    container.innerHTML = tags.map((tag, i) => `
+      <div class="tag-manage-row" id="tmrow-${type}-${i}">
+        <span class="tag-manage-name">${esc(tag)}</span>
+        <button class="tag-manage-btn" onclick="startRenameTag('${type}',${i})">✏ Rename</button>
+        <button class="tag-manage-btn del" onclick="deleteTag('${type}','${esc(tag)}')">✕</button>
+      </div>`).join('');
+  });
+}
+
+function startRenameTag(type, idx) {
+  const tags = type === 'ing' ? settings.ingTags : settings.methodTags;
+  const tag = tags[idx];
+  const row = document.getElementById(`tmrow-${type}-${idx}`);
+  row.innerHTML = `
+    <input class="tag-manage-input" id="rename-input-${type}-${idx}" value="${esc(tag)}" onkeydown="if(event.key==='Enter')confirmRenameTag('${type}',${idx},'${esc(tag)}');if(event.key==='Escape')renderTagManager()">
+    <button class="tag-manage-btn" onclick="confirmRenameTag('${type}',${idx},'${esc(tag)}')">Save</button>
+    <button class="tag-manage-btn" onclick="renderTagManager()">Cancel</button>`;
+  document.getElementById(`rename-input-${type}-${idx}`).select();
+}
+
+function confirmRenameTag(type, idx, oldTag) {
+  const input = document.getElementById(`rename-input-${type}-${idx}`);
+  const newTag = input ? input.value.trim() : '';
+  if (!newTag || newTag === oldTag) { renderTagManager(); return; }
+  const tags = type === 'ing' ? settings.ingTags : settings.methodTags;
+  if (tags.includes(newTag)) { toast('Tag already exists'); return; }
+  tags[idx] = newTag;
+  recipes.forEach(r => {
+    const arr = type === 'ing' ? r.ingTags : r.methodTags;
+    const i = (arr||[]).indexOf(oldTag);
+    if (i >= 0) arr[i] = newTag;
+  });
+  save();
+  syncSettingsToFirebase();
+  renderTagManager();
+  buildTagChecks();
+  toast(`Renamed "${oldTag}" → "${newTag}"`);
+}
+
+function deleteTag(type, tag) {
+  if (!confirm(`Delete tag "${tag}"? It will be removed from all recipes.`)) return;
+  if (type === 'ing') settings.ingTags = settings.ingTags.filter(t => t !== tag);
+  else settings.methodTags = settings.methodTags.filter(t => t !== tag);
+  recipes.forEach(r => {
+    if (type === 'ing') r.ingTags = (r.ingTags||[]).filter(t => t !== tag);
+    else r.methodTags = (r.methodTags||[]).filter(t => t !== tag);
+  });
+  save();
+  syncSettingsToFirebase();
+  renderTagManager();
+  buildTagChecks();
+  renderGrid();
+  toast(`Deleted tag "${tag}"`);
+}
+
+function addTagFromManager(type) {
+  const inputId = type === 'ing' ? 'newIngTag' : 'newMethTag';
+  const val = document.getElementById(inputId).value.trim();
+  if (!val) return;
+  const tags = type === 'ing' ? settings.ingTags : settings.methodTags;
+  if (tags.includes(val)) { toast('Tag already exists'); return; }
+  tags.push(val);
+  document.getElementById(inputId).value = '';
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+  renderTagManager();
+  buildTagChecks();
+  toast(`Added tag "${val}"`);
 }
 
 function saveSettings() {
