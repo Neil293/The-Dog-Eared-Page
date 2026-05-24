@@ -659,14 +659,13 @@
   }
 
   .section-header {
+    display: flex; justify-content: flex-end;
     margin-bottom: 1rem;
   }
   .section-count {
     font-family: var(--font-hand);
     font-size: 0.9rem;
     color: var(--ink-faint);
-    display: block;
-    text-align: right;
   }
   .img-search-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem;
@@ -694,8 +693,6 @@
     <button class="icon-btn" id="photoImportBtn" title="Photo import" onclick="openPhotoImport()">📷</button>
     <button class="icon-btn" id="pasteImportBtn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
     <button class="icon-btn" id="urlImportBtn" title="Import from URL" onclick="openUrlImport()">🔗</button>
-    <span id="currentUserLabel" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--paper-dark);padding:0 4px;opacity:0.85"></span>
-    <button class="icon-btn" title="Log out" onclick="doLogout()">👤</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
   </div>
 </header>
@@ -952,6 +949,7 @@
         <button class="settings-tab-btn active" onclick="openSettingsTab('general',this)">General</button>
         <button class="settings-tab-btn" onclick="openSettingsTab('tags',this)">🏷 Tags</button>
         <button class="settings-tab-btn" id="usersTabBtn" onclick="openSettingsTab('users',this)">👥 Users</button>
+        <button class="settings-tab-btn" onclick="openSettingsTab('account',this)">👤 Account</button>
       </div>
 
       <!-- General tab -->
@@ -1046,6 +1044,17 @@
           <div class="settings-section-title">🔑 My Password</div>
           <button class="btn btn-ghost btn-sm" onclick="showChangePasswordModal(false)">Change my password</button>
         </div>
+      <!-- Account tab -->
+      <div class="settings-tab-panel" id="stab-account">
+        <div class="settings-block">
+          <div class="settings-section-title">👤 Account</div>
+          <p style="font-family:var(--font-hand);font-size:1rem;color:var(--ink);margin-bottom:1.2rem">Signed in as <strong id="accountNameLabel"></strong></p>
+          <div style="display:flex;flex-direction:column;gap:0.6rem;align-items:flex-start">
+            <button class="btn btn-ghost btn-sm" onclick="showChangePasswordModal(false)">🔑 Change password</button>
+            <button class="btn btn-ghost btn-sm" style="color:#c0392b;border-color:#c0392b" onclick="doLogout()">Sign out</button>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1246,7 +1255,6 @@ function applyPermissions() {
     const el = document.getElementById(id);
     if (el) el.style.display = canAI ? '' : 'none';
   });
-  document.getElementById('currentUserLabel').textContent = localUser?.name || '';
 }
 
 function showLoginModal() {
@@ -2267,6 +2275,7 @@ function openSettingsTab(tab, btn) {
   document.getElementById('settingsSaveBtn').style.display = tab === 'general' ? '' : 'none';
   if (tab === 'tags') renderTagManager();
   if (tab === 'users') renderUserManager();
+  if (tab === 'account') document.getElementById('accountNameLabel').textContent = localUser?.name || '';
 }
 
 function renderTagManager() {
