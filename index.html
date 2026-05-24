@@ -651,8 +651,6 @@
     <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
     <button class="icon-btn" title="Import from URL" onclick="openUrlImport()">🔗</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
-    <button class="icon-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐</button>
-    <button class="icon-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷</button>
   </div>
 </header>
 
@@ -671,7 +669,10 @@
 
   <!-- Grid -->
   <div class="section-header">
-    <div></div>
+    <div style="display:flex;gap:0.4rem">
+      <button class="filter-quick-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
+      <button class="filter-quick-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
+    </div>
     <span class="section-count" id="recipeCount"></span>
   </div>
   <div class="recipe-grid" id="recipeGrid"></div>
