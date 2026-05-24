@@ -83,6 +83,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .icon-btn.active { background: var(--accent); color: #fff; }
   .sync-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: #888; display: inline-block; margin-left: 4px;
@@ -650,6 +651,8 @@
     <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
     <button class="icon-btn" title="Import from URL" onclick="openUrlImport()">🔗</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
+    <button class="icon-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐</button>
+    <button class="icon-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷</button>
   </div>
 </header>
 
@@ -664,24 +667,6 @@
   <!-- Search -->
   <div class="search-bar" style="margin-top:1rem">
     <input type="text" class="search-input" id="searchInput" placeholder="Search recipes, ingredients…" oninput="renderGrid()">
-  </div>
-
-  <!-- Ingredient filters -->
-  <div class="filter-section collapsed" id="ingFilterSection">
-    <span class="filter-label" onclick="toggleFilterSection('ingFilterSection')">🥩 By ingredient<span class="chevron">▼</span></span>
-    <div class="tags-row" id="ingFilterRow"></div>
-  </div>
-
-  <!-- Method filters -->
-  <div class="filter-section collapsed" id="methFilterSection">
-    <span class="filter-label" onclick="toggleFilterSection('methFilterSection')">🍲 By method<span class="chevron">▼</span></span>
-    <div class="tags-row" id="methodFilterRow"></div>
-  </div>
-
-  <!-- Quick filters -->
-  <div class="quick-filters">
-    <button class="filter-quick-btn" id="btnRecentFilter" onclick="toggleRecentFilter()">🕐 Recently Added</button>
-    <button class="filter-quick-btn" id="btnCustomFilter" onclick="openCustomFilter()">🏷 Custom Filter</button>
   </div>
 
   <!-- Grid -->
@@ -1170,9 +1155,7 @@ function applyCustomFilter() {
   });
   const total = activeIngFilters.size + activeMethFilters.size;
   document.getElementById('btnCustomFilter').classList.toggle('active', total > 0);
-  document.getElementById('btnCustomFilter').textContent = total ? `🏷 Custom Filter (${total})` : '🏷 Custom Filter';
   closeModal('customFilterModal');
-  renderFilters();
   renderGrid();
 }
 
