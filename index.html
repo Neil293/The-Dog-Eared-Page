@@ -1000,6 +1000,7 @@
           <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database. Paste your config values above and connect — sync starts automatically on all devices using the same config. Update your Firestore rules to: <code style="font-size:0.8rem">match /shared/{id}/{d=**} { allow read, write: if true; }</code></p>
           <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
           <button class="btn btn-ghost btn-sm" style="margin-top:0.5rem" onclick="syncToFirebase()">Force Sync</button>
+          <button class="btn btn-ghost btn-sm" id="showQRBtn" style="margin-top:0.5rem;display:none" onclick="showSetupQR()">📱 Show Setup QR</button>
           <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
           <div id="syncIdDisplay" style="display:none;margin-top:0.5rem;font-family:var(--font-hand);font-size:0.78rem;color:var(--ink-faint)">Sync ID: <span id="syncIdVal"></span></div>
         </div>
@@ -1131,8 +1132,9 @@
       </div>
       <div id="loginError" style="color:var(--accent);font-family:var(--font-hand);font-size:0.9rem;min-height:1.2em"></div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="flex-direction:column;gap:0.5rem;align-items:stretch">
       <button class="btn btn-accent" onclick="doLogin()">Sign in</button>
+      <button class="btn btn-ghost btn-sm" onclick="openQRScanner()" style="text-align:center">📷 New device? Scan setup QR</button>
     </div>
   </div>
 </div>
@@ -1162,6 +1164,35 @@
 </div>
 
 <!-- Scale modal -->
+<!-- QR Code display modal -->
+<div class="modal-overlay" id="qrDisplayModal">
+  <div class="modal" style="max-width:320px;text-align:center">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display);font-size:1.1rem">📱 Setup QR Code</h2>
+      <button class="icon-btn" onclick="closeModal('qrDisplayModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-bottom:1rem">Scan this on a new device to copy all settings</p>
+      <canvas id="qrCanvas" style="max-width:100%;border-radius:8px"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- QR Code scanner modal -->
+<div class="modal-overlay" id="qrScannerModal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display);font-size:1.1rem">📷 Scan Setup QR</h2>
+      <button class="icon-btn" onclick="closeQRScanner()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0;position:relative">
+      <video id="qrVideo" style="width:100%;display:block;border-radius:0 0 8px 8px" autoplay playsinline muted></video>
+      <canvas id="qrScanCanvas" style="display:none"></canvas>
+      <div id="qrScanStatus" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);color:#fff;font-family:var(--font-hand);font-size:0.9rem;padding:0.5rem;text-align:center">Point camera at QR code</div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="scaleModal">
   <div class="modal" style="max-width:300px">
     <div class="modal-header">
@@ -2326,6 +2357,7 @@ function openSettings() {
   document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
   document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
   document.getElementById('usersTabBtn').style.display = localUser?.isAdmin ? '' : 'none';
+  document.getElementById('showQRBtn').style.display = localUser?.isAdmin ? '' : 'none';
   openSettingsTab('general', document.querySelector('.settings-tab-btn'));
   updateFirebaseStatus();
   openModal('settingsModal');
@@ -2542,16 +2574,15 @@ async function loadSettingsFromFirebase() {
   if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, getDoc, setDoc } = firebaseDb;
   const ref = doc(db, 'shared', firebaseSyncId, 'meta', 'settings');
+  const usersRef = doc(db, 'shared', firebaseSyncId, 'meta', 'users');
   try {
-    const snap = await getDoc(ref);
+    const [snap, usersSnap] = await Promise.all([getDoc(ref), getDoc(usersRef)]);
     if (snap.exists()) {
       const remote = snap.data();
       if (remote.apiKey) settings.apiKey = remote.apiKey;
       if (remote.geminiApiKey) settings.geminiApiKey = remote.geminiApiKey;
       if (remote.ingTags?.length) settings.ingTags = remote.ingTags;
       if (remote.methodTags?.length) settings.methodTags = remote.methodTags;
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      renderFilters();
     } else {
       await setDoc(ref, {
         apiKey: settings.apiKey || '',
@@ -2560,6 +2591,19 @@ async function loadSettingsFromFirebase() {
         methodTags: settings.methodTags || []
       });
     }
+    if (usersSnap.exists()) {
+      const remoteUsers = usersSnap.data().users || [];
+      if (remoteUsers.length) {
+        // Merge: remote wins for existing IDs, keep local-only users
+        const remoteIds = new Set(remoteUsers.map(u => u.id));
+        const localOnly = (settings.users || []).filter(u => !remoteIds.has(u.id));
+        settings.users = [...remoteUsers, ...localOnly];
+      }
+    } else {
+      await setDoc(usersRef, { users: settings.users || [] });
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    renderFilters();
   } catch (e) {
     console.error('Settings load error:', e);
   }
@@ -2569,12 +2613,17 @@ async function syncSettingsToFirebase() {
   if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, setDoc } = firebaseDb;
   try {
-    await setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'settings'), {
-      apiKey: settings.apiKey || '',
-      geminiApiKey: settings.geminiApiKey || '',
-      ingTags: settings.ingTags || [],
-      methodTags: settings.methodTags || []
-    });
+    await Promise.all([
+      setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'settings'), {
+        apiKey: settings.apiKey || '',
+        geminiApiKey: settings.geminiApiKey || '',
+        ingTags: settings.ingTags || [],
+        methodTags: settings.methodTags || []
+      }),
+      setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'users'), {
+        users: settings.users || []
+      })
+    ]);
   } catch (e) {
     console.error('Settings sync error:', e);
   }
@@ -2627,7 +2676,8 @@ function exportSettings() {
     apiKey: settings.apiKey || '',
     geminiApiKey: settings.geminiApiKey || '',
     ingTags: settings.ingTags || [],
-    methodTags: settings.methodTags || []
+    methodTags: settings.methodTags || [],
+    users: settings.users || []
   };
   const blob = new Blob([JSON.stringify(exportable, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2651,6 +2701,7 @@ function importSettings(input) {
       if (data.geminiApiKey) settings.geminiApiKey = data.geminiApiKey;
       if (data.ingTags?.length) settings.ingTags = data.ingTags;
       if (data.methodTags?.length) settings.methodTags = data.methodTags;
+      if (data.users?.length) settings.users = data.users;
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       // Refresh the form fields
       document.getElementById('sApiKey').value = settings.apiKey || '';
@@ -2663,6 +2714,90 @@ function importSettings(input) {
   };
   reader.readAsText(file);
   input.value = '';
+}
+
+// ═══════════════════════════════════════════════════════
+//  QR CODE
+// ═══════════════════════════════════════════════════════
+
+async function showSetupQR() {
+  const payload = JSON.stringify({
+    fa: settings.firebaseApiKey || '',
+    fp: settings.firebaseProjectId || '',
+    fi: settings.firebaseAppId || '',
+    ak: settings.apiKey || '',
+    gk: settings.geminiApiKey || ''
+  });
+  openModal('qrDisplayModal');
+  const canvas = document.getElementById('qrCanvas');
+  if (!window.QRCode) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  await QRCode.toCanvas(canvas, payload, { width: 280, margin: 2, color: { dark: '#3b2a1a', light: '#fdf6ee' } });
+}
+
+let _qrScanStream = null;
+let _qrScanTimer = null;
+
+async function openQRScanner() {
+  openModal('qrScannerModal');
+  if (!window.jsQR) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  try {
+    _qrScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('qrVideo');
+    video.srcObject = _qrScanStream;
+    await video.play();
+    _qrScanTimer = setInterval(() => scanQRFrame(video), 200);
+  } catch (e) {
+    document.getElementById('qrScanStatus').textContent = 'Camera access denied';
+  }
+}
+
+function scanQRFrame(video) {
+  if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+  const canvas = document.getElementById('qrScanCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const result = jsQR(img.data, img.width, img.height);
+  if (result) {
+    clearInterval(_qrScanTimer);
+    closeQRScanner();
+    try {
+      const data = JSON.parse(result.data);
+      if (data.fa) settings.firebaseApiKey = data.fa;
+      if (data.fp) settings.firebaseProjectId = data.fp;
+      if (data.fi) settings.firebaseAppId = data.fi;
+      if (data.ak) settings.apiKey = data.ak;
+      if (data.gk) settings.geminiApiKey = data.gk;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      toast('Settings imported — connecting Firebase…');
+      if (settings.firebaseApiKey && settings.firebaseProjectId) initFirebase(false);
+    } catch (e) {
+      toast('Invalid QR code');
+    }
+  }
+}
+
+function closeQRScanner() {
+  clearInterval(_qrScanTimer);
+  _qrScanTimer = null;
+  if (_qrScanStream) { _qrScanStream.getTracks().forEach(t => t.stop()); _qrScanStream = null; }
+  closeModal('qrScannerModal');
 }
 
 // ═══════════════════════════════════════════════════════
