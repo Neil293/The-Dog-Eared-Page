@@ -1425,7 +1425,11 @@ function addCustomTag(type) {
   }
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   input.value = '';
+  const checkedIng = [...document.querySelectorAll('#ingTagChecks input:checked')].map(cb => cb.value);
+  const checkedMeth = [...document.querySelectorAll('#methodTagChecks input:checked')].map(cb => cb.value);
   buildTagChecks();
+  checkedIng.forEach(t => { const cb = document.querySelector(`#ingTagChecks input[value="${CSS.escape(t)}"]`); if (cb) cb.checked = true; });
+  checkedMeth.forEach(t => { const cb = document.querySelector(`#methodTagChecks input[value="${CSS.escape(t)}"]`); if (cb) cb.checked = true; });
   renderFilters();
 }
 
