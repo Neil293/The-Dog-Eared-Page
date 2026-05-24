@@ -2478,8 +2478,13 @@ async function initFirebase(silent = false) {
       }
     });
 
-    // Handle mobile redirect sign-in result
-    getRedirectResult(auth).catch(() => {});
+    // Finalise any pending redirect sign-in (mobile browsers)
+    getRedirectResult(auth).then(result => {
+      if (result?.user) toast('Signed in as ' + (result.user.displayName || result.user.email));
+    }).catch(e => {
+      if (e.code !== 'auth/no-auth-event') toast('Sign-in error: ' + e.code);
+      console.error('getRedirectResult error:', e);
+    });
 
   } catch (e) {
     setSyncDot('err');
