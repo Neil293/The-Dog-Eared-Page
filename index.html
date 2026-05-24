@@ -182,6 +182,33 @@
   .filter-tag.active { background: var(--ink-light); color: var(--paper); border-color: var(--ink-light); }
   .filter-tag.method.active { background: var(--green); border-color: var(--green); }
 
+  .quick-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; padding: 0.4rem 1rem 0.6rem; }
+  .filter-quick-btn {
+    font-family: var(--font-hand);
+    font-size: 0.88rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--paper-darker);
+    background: var(--cream);
+    color: var(--ink-light);
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .filter-quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-quick-btn.active { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
+  .recipe-meta-footer {
+    font-family: var(--font-hand);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin-top: 1rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed var(--paper-darker);
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
   /* ─── RECIPE GRID ─── */
   .recipe-grid {
     display: grid;
@@ -651,6 +678,12 @@
     <div class="tags-row" id="methodFilterRow"></div>
   </div>
 
+  <!-- Quick filters -->
+  <div class="quick-filters">
+    <button class="filter-quick-btn" id="btnRecentFilter" onclick="toggleRecentFilter()">🕐 Recently Added</button>
+    <button class="filter-quick-btn" id="btnCustomFilter" onclick="openCustomFilter()">🏷 Custom Filter</button>
+  </div>
+
   <!-- Grid -->
   <div class="section-header">
     <div></div>
@@ -761,6 +794,20 @@
       <div class="form-group">
         <label class="form-label">Notes (optional)</label>
         <textarea class="form-textarea" id="fNotes" placeholder="Tips, variations, serving suggestions…"></textarea>
+      </div>
+
+      <!-- Origin -->
+      <div class="form-group">
+        <label class="form-label">Origin</label>
+        <select class="form-input" id="fSource">
+          <option value="manual">✏️ Manual entry</option>
+          <option value="ai">📷 AI photo import</option>
+          <option value="url">🔗 Web URL</option>
+          <option value="paste">📋 Pasted text</option>
+          <option value="book">📚 Book</option>
+          <option value="magazine">📰 Magazine</option>
+          <option value="other">📝 Other</option>
+        </select>
       </div>
 
       <!-- Photo -->
@@ -951,6 +998,21 @@
   </div>
 </div>
 
+<!-- Custom filter modal -->
+<div class="modal-overlay" id="customFilterModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display);font-size:1.1rem">🏷 Filter by tags</h2>
+      <button class="icon-btn" onclick="closeModal('customFilterModal')">✕</button>
+    </div>
+    <div class="modal-body" id="customFilterContent"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="clearCustomFilter()">Clear all</button>
+      <button class="btn btn-accent" onclick="applyCustomFilter()">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -972,6 +1034,7 @@ let settings = {};
 let activeTab = 'all';
 let activeIngFilters = new Set();
 let activeMethFilters = new Set();
+let sortRecent = false;
 let editingId = null;
 let viewingId = null;
 let photoBase64 = null;
@@ -1070,6 +1133,49 @@ function updateFilterLabels() {
   methLabel.childNodes[0].textContent = methCount ? `🍲 By method (${methCount}) ` : '🍲 By method';
 }
 
+function toggleRecentFilter() {
+  sortRecent = !sortRecent;
+  document.getElementById('btnRecentFilter').classList.toggle('active', sortRecent);
+  renderGrid();
+}
+
+function openCustomFilter() {
+  const allIng = settings.ingTags || [];
+  const allMeth = settings.methodTags || [];
+  let html = '';
+  if (allIng.length) {
+    html += `<div class="form-label" style="margin-bottom:0.4rem">Ingredient</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">` +
+      allIng.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-family:var(--font-hand);font-size:0.9rem"><input type="checkbox" value="${esc(t)}" data-type="ing" ${activeIngFilters.has(t)?'checked':''}> <span class="tag-pill">${esc(t)}</span></label>`).join('') + `</div>`;
+  }
+  if (allMeth.length) {
+    html += `<div class="form-label" style="margin-bottom:0.4rem">Method</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:0.5rem">` +
+      allMeth.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-family:var(--font-hand);font-size:0.9rem"><input type="checkbox" value="${esc(t)}" data-type="meth" ${activeMethFilters.has(t)?'checked':''}> <span class="tag-pill method">${esc(t)}</span></label>`).join('') + `</div>`;
+  }
+  document.getElementById('customFilterContent').innerHTML = html;
+  openModal('customFilterModal');
+}
+
+function clearCustomFilter() {
+  document.querySelectorAll('#customFilterContent input[type="checkbox"]').forEach(cb => cb.checked = false);
+}
+
+function applyCustomFilter() {
+  activeIngFilters.clear();
+  activeMethFilters.clear();
+  document.querySelectorAll('#customFilterContent input[type="checkbox"]:checked').forEach(cb => {
+    if (cb.dataset.type === 'ing') activeIngFilters.add(cb.value);
+    else activeMethFilters.add(cb.value);
+  });
+  const total = activeIngFilters.size + activeMethFilters.size;
+  document.getElementById('btnCustomFilter').classList.toggle('active', total > 0);
+  document.getElementById('btnCustomFilter').textContent = total ? `🏷 Custom Filter (${total})` : '🏷 Custom Filter';
+  closeModal('customFilterModal');
+  renderFilters();
+  renderGrid();
+}
+
 // ═══════════════════════════════════════════════════════
 //  RENDER GRID
 // ═══════════════════════════════════════════════════════
@@ -1092,6 +1198,8 @@ function renderGrid() {
     }
     return true;
   });
+
+  if (sortRecent) list.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
 
   document.getElementById('recipeCount').textContent = list.length + ' recipe' + (list.length !== 1 ? 's' : '');
 
@@ -1196,6 +1304,11 @@ function viewRecipe(id) {
     body += `<div class="recipe-notes">${esc(r.notes)}</div>`;
   }
 
+  const sourceLabels = { manual: '✏️ Manual', ai: '📷 AI import', url: '🔗 Web URL', paste: '📋 Pasted text', book: '📚 Book', magazine: '📰 Magazine', other: '📝 Other' };
+  const srcLabel = sourceLabels[r.source] || (r.source ? esc(r.source) : '✏️ Manual');
+  const dateLabel = r.dateAdded ? new Date(r.dateAdded).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  body += `<div class="recipe-meta-footer"><span>Origin: ${srcLabel}</span>${dateLabel ? `<span>Added: ${dateLabel}</span>` : ''}</div>`;
+
   document.getElementById('viewBody').innerHTML = body;
   openModal('viewModal');
 }
@@ -1252,6 +1365,7 @@ function editRecipeFromView() {
   document.getElementById('fServes').value = r.serves || '';
   document.getElementById('fEmoji').value = r.emoji || '';
   document.getElementById('fNotes').value = r.notes || '';
+  document.getElementById('fSource').value = r.source || 'manual';
   (r.ingTags||[]).forEach(t => {
     const cb = document.querySelector(`#ingTagChecks input[value="${CSS.escape(t)}"]`);
     if (cb) cb.checked = true;
@@ -1315,6 +1429,7 @@ function removeRecipePhoto() { setRecipePhotoPreview(null); }
 
 function clearForm() {
   ['fName','fPrep','fCook','fServes','fEmoji','fNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fSource').value = 'manual';
   document.getElementById('ingredientsList').innerHTML = '';
   document.getElementById('stepsList').innerHTML = '';
   stepCount = 0;
@@ -1463,8 +1578,10 @@ function saveRecipe() {
     emoji: document.getElementById('fEmoji').value.trim() || null,
     ingTags, methodTags, ingredients, steps,
     notes: document.getElementById('fNotes').value.trim(),
+    source: document.getElementById('fSource').value || 'manual',
     fav: editingId ? (recipes.find(x=>x.id===editingId)||{}).fav : false,
     imageData: window._pendingImageData || null,
+    dateAdded: editingId ? (recipes.find(x=>x.id===editingId)||{}).dateAdded || Date.now() : Date.now(),
     updatedAt: Date.now()
   };
 
@@ -1598,6 +1715,7 @@ CRITICAL RULES:
     const raw = await callAI(prompt, photoBase64);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.imageData = 'data:image/jpeg;base64,' + photoBase64;
+    parsed.source = 'ai';
     document.getElementById('aiStatus').innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
     setTimeout(() => {
       document.getElementById('photoPreview').src = '';
@@ -1738,6 +1856,7 @@ ${text}`;
     const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.origin = url;
+    parsed.source = 'url';
 
     if (ogImgUrl) {
       statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Fetching recipe photo…</div>`;
@@ -1764,6 +1883,7 @@ function prefillForm(data) {
   if (data.serves) document.getElementById('fServes').value = data.serves;
   if (data.emoji) document.getElementById('fEmoji').value = data.emoji;
   if (data.notes) document.getElementById('fNotes').value = data.notes;
+  if (data.source) document.getElementById('fSource').value = data.source;
 
   // Add any new tags from AI
   (data.ingTags||[]).forEach(t => { if (!settings.ingTags.includes(t)) settings.ingTags.push(t); });
@@ -1855,6 +1975,7 @@ ${text}`;
   try {
     const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    parsed.source = 'paste';
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
     setTimeout(() => { closeModal('pasteModal'); openAddRecipe(parsed); }, 800);
   } catch (e) {
