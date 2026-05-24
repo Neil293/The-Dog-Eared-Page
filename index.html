@@ -746,7 +746,10 @@
 
       <!-- Steps -->
       <div class="form-group">
-        <label class="form-label">Method / Steps</label>
+        <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+          Method / Steps
+          <button type="button" class="btn btn-ghost btn-sm" onclick="convertFtoC()" style="font-size:0.78rem;padding:3px 9px;font-family:var(--font-hand)">°F → °C</button>
+        </label>
         <div class="steps-list" id="stepsList"></div>
         <div style="display:flex;gap:0.4rem">
           <button class="btn-add-row" style="flex:1" onclick="addStepRow()">+ Add step</button>
@@ -1392,6 +1395,25 @@ function addStepSection(title = '') {
   list.appendChild(row);
 }
 
+function convertFtoC() {
+  const fPattern = /(\d+(?:\.\d+)?)\s*(?:degrees?\s*)?°?F(?:ahrenheit)?\b/gi;
+  let count = 0;
+  document.querySelectorAll('#stepsList textarea').forEach(ta => {
+    ta.value = ta.value.replace(fPattern, (_, f) => {
+      count++;
+      return Math.round((parseFloat(f) - 32) * 5 / 9) + '°C';
+    });
+  });
+  const notes = document.getElementById('fNotes');
+  if (notes) {
+    notes.value = notes.value.replace(fPattern, (_, f) => {
+      count++;
+      return Math.round((parseFloat(f) - 32) * 5 / 9) + '°C';
+    });
+  }
+  toast(count ? `Converted ${count} temperature${count > 1 ? 's' : ''} to °C` : 'No °F temperatures found');
+}
+
 function addCustomTag(type) {
   const input = document.getElementById(type === 'ing' ? 'customIngTag' : 'customMethodTag');
   const val = input.value.trim();
@@ -1560,6 +1582,8 @@ CRITICAL RULES:
 - For items that can't easily be grams (e.g. "2 eggs"), convert to approximate grams (2 eggs = 100g)
 - If the recipe has named ingredient groups (e.g. "For the sauce", "For the marinade"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
 - If the recipe has named method stages (e.g. "To make the sauce"), insert a {"section": "Stage name"} object before those steps in the steps array. Steps are otherwise plain strings.
+- Convert ALL temperatures to °C. Replace every °F or Fahrenheit value in steps and notes (e.g. "425°F" → "218°C", "165F" → "74°C"). Never leave Fahrenheit in the output.
+- Use metric units throughout. Ingredient amounts in grams (already required). Temperatures in °C. Any other measurements (distances, volumes mentioned in steps) in metric.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated
@@ -1696,6 +1720,8 @@ CRITICAL RULES:
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
 - If the recipe has named ingredient groups (e.g. "For the sauce"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
 - If the recipe has named method stages, insert a {"section": "Stage name"} object before those steps. Steps are otherwise plain strings.
+- Convert ALL temperatures to °C. Replace every °F or Fahrenheit value in steps and notes (e.g. "425°F" → "218°C", "165F" → "74°C"). Never leave Fahrenheit in the output.
+- Use metric units throughout. Ingredient amounts in grams (already required). Temperatures in °C. Any other measurements in metric.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.
@@ -1812,6 +1838,8 @@ CRITICAL RULES:
 - For items that can't easily be grams (e.g. "2 eggs"), use approximate grams (2 eggs = 100g)
 - If the recipe has named ingredient groups (e.g. "For the sauce"), insert a {"section": "Group name"} object before that group's ingredients. Omit sections if there is only one group.
 - If the recipe has named method stages, insert a {"section": "Stage name"} object before those steps. Steps are otherwise plain strings.
+- Convert ALL temperatures to °C. Replace every °F or Fahrenheit value in steps and notes (e.g. "425°F" → "218°C", "165F" → "74°C"). Never leave Fahrenheit in the output.
+- Use metric units throughout. Ingredient amounts in grams (already required). Temperatures in °C. Any other measurements in metric.
 - ingTags must be from: Beef, Chicken, Pork, Lamb, Seafood, Fish, Vegetarian, Vegan, Pasta, Rice, Eggs, Dairy, or infer appropriate ones
 - methodTags must be from: Soup, Slow Cook, Bake, Roast, Fry, Grill, Stir-fry, Steam, Salad, Sauce, Dessert, Breakfast, BBQ, or infer appropriate ones
 - prepTime and cookTime are integers in minutes, or null if not stated. serves is an integer or null.
