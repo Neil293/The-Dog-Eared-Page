@@ -1241,15 +1241,15 @@ async function init() {
 
   renderFilters();
 
+  // Reconnect Firebase regardless of local login state
+  if (settings.firebaseApiKey && settings.firebaseProjectId) {
+    initFirebase(true);
+  }
+
   if (!localUser) { renderGrid(); showLoginModal(); return; }
   applyPermissions();
   renderGrid();
   if (localUser.mustChangePassword) showChangePasswordModal(true);
-
-  // Try reconnect Firebase
-  if (settings.firebaseApiKey && settings.firebaseProjectId) {
-    initFirebase(true);
-  }
 }
 
 function save() {
@@ -1311,6 +1311,7 @@ async function doLogin() {
   document.getElementById('loginModal').classList.remove('open');
   applyPermissions();
   renderGrid();
+  if (!firebaseDb && settings.firebaseApiKey && settings.firebaseProjectId) initFirebase(true);
   if (user.mustChangePassword) showChangePasswordModal(true);
 }
 
