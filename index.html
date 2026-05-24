@@ -999,7 +999,9 @@
           </div>
           <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database. Paste your config values above and connect — sync starts automatically on all devices using the same config. Update your Firestore rules to: <code style="font-size:0.8rem">match /shared/{id}/{d=**} { allow read, write: if true; }</code></p>
           <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
+          <button class="btn btn-ghost btn-sm" style="margin-top:0.5rem" onclick="syncToFirebase()">Force Sync</button>
           <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
+          <div id="syncIdDisplay" style="display:none;margin-top:0.5rem;font-family:var(--font-hand);font-size:0.78rem;color:var(--ink-faint)">Sync ID: <span id="syncIdVal"></span></div>
         </div>
 
         <div class="settings-block">
@@ -2525,6 +2527,12 @@ function updateFirebaseStatus() {
   const statusEl = document.getElementById('firebaseStatus');
   if (!statusEl) return;
   statusEl.textContent = firebaseDb ? '✓ Connected' : '';
+  const syncIdDisplay = document.getElementById('syncIdDisplay');
+  const syncIdVal = document.getElementById('syncIdVal');
+  if (syncIdDisplay && syncIdVal) {
+    syncIdDisplay.style.display = firebaseSyncId ? '' : 'none';
+    if (firebaseSyncId) syncIdVal.textContent = firebaseSyncId.slice(0, 8) + '…';
+  }
 }
 
 async function loadSettingsFromFirebase() {
