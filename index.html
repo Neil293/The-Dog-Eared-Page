@@ -133,10 +133,8 @@
     border-bottom: 3px solid transparent;
     transition: all 0.2s;
     opacity: 0.75;
-    margin-left: auto;
   }
-  .nav-btn:first-of-type { margin-left: auto; }
-  .nav-btn + .nav-btn { margin-left: 0; }
+  #btnRecentFilter { margin-left: auto; }
   .nav-btn:hover { opacity: 1; }
   .nav-btn.active { color: #fff; opacity: 1; border-bottom-color: var(--accent-light); }
 
@@ -1089,51 +1087,17 @@ function toggleFilterSection(id) {
   section.classList.toggle('collapsed');
 }
 
-function renderFilters() {
-  const ingRow = document.getElementById('ingFilterRow');
-  const methRow = document.getElementById('methodFilterRow');
-  ingRow.innerHTML = '';
-  methRow.innerHTML = '';
+function renderFilters() {}
 
-  settings.ingTags.forEach(tag => {
-    const el = document.createElement('button');
-    el.className = 'filter-tag' + (activeIngFilters.has(tag) ? ' active' : '');
-    el.textContent = tag;
-    el.onclick = () => toggleFilter('ing', tag, el);
-    ingRow.appendChild(el);
-  });
-  settings.methodTags.forEach(tag => {
-    const el = document.createElement('button');
-    el.className = 'filter-tag method' + (activeMethFilters.has(tag) ? ' active' : '');
-    el.textContent = tag;
-    el.onclick = () => toggleFilter('method', tag, el);
-    methRow.appendChild(el);
-  });
-}
-
-function toggleFilter(type, tag, el) {
+function toggleFilter(type, tag) {
   const set = type === 'ing' ? activeIngFilters : activeMethFilters;
-  const sectionId = type === 'ing' ? 'ingFilterSection' : 'methFilterSection';
-  if (set.has(tag)) { set.delete(tag); el.classList.remove('active'); }
-  else {
-    set.add(tag);
-    el.classList.add('active');
-    document.getElementById(sectionId).classList.remove('collapsed');
-  }
-  updateFilterLabels();
+  if (set.has(tag)) set.delete(tag); else set.add(tag);
   renderGrid();
 }
 
-function updateFilterLabels() {
-  const ingSection = document.getElementById('ingFilterSection');
-  const methSection = document.getElementById('methFilterSection');
-  const ingLabel = ingSection.querySelector('.filter-label');
-  const methLabel = methSection.querySelector('.filter-label');
-  const ingCount = activeIngFilters.size;
-  const methCount = activeMethFilters.size;
-  ingLabel.childNodes[0].textContent = ingCount ? `🥩 By ingredient (${ingCount}) ` : '🥩 By ingredient';
-  methLabel.childNodes[0].textContent = methCount ? `🍲 By method (${methCount}) ` : '🍲 By method';
-}
+function updateFilterLabels() {}
+
+function toggleFilterSection() {}
 
 function toggleRecentFilter() {
   sortRecent = !sortRecent;
