@@ -2542,16 +2542,15 @@ async function loadSettingsFromFirebase() {
   if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, getDoc, setDoc } = firebaseDb;
   const ref = doc(db, 'shared', firebaseSyncId, 'meta', 'settings');
+  const usersRef = doc(db, 'shared', firebaseSyncId, 'meta', 'users');
   try {
-    const snap = await getDoc(ref);
+    const [snap, usersSnap] = await Promise.all([getDoc(ref), getDoc(usersRef)]);
     if (snap.exists()) {
       const remote = snap.data();
       if (remote.apiKey) settings.apiKey = remote.apiKey;
       if (remote.geminiApiKey) settings.geminiApiKey = remote.geminiApiKey;
       if (remote.ingTags?.length) settings.ingTags = remote.ingTags;
       if (remote.methodTags?.length) settings.methodTags = remote.methodTags;
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      renderFilters();
     } else {
       await setDoc(ref, {
         apiKey: settings.apiKey || '',
@@ -2560,6 +2559,19 @@ async function loadSettingsFromFirebase() {
         methodTags: settings.methodTags || []
       });
     }
+    if (usersSnap.exists()) {
+      const remoteUsers = usersSnap.data().users || [];
+      if (remoteUsers.length) {
+        // Merge: remote wins for existing IDs, keep local-only users
+        const remoteIds = new Set(remoteUsers.map(u => u.id));
+        const localOnly = (settings.users || []).filter(u => !remoteIds.has(u.id));
+        settings.users = [...remoteUsers, ...localOnly];
+      }
+    } else {
+      await setDoc(usersRef, { users: settings.users || [] });
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    renderFilters();
   } catch (e) {
     console.error('Settings load error:', e);
   }
@@ -2569,12 +2581,17 @@ async function syncSettingsToFirebase() {
   if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, setDoc } = firebaseDb;
   try {
-    await setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'settings'), {
-      apiKey: settings.apiKey || '',
-      geminiApiKey: settings.geminiApiKey || '',
-      ingTags: settings.ingTags || [],
-      methodTags: settings.methodTags || []
-    });
+    await Promise.all([
+      setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'settings'), {
+        apiKey: settings.apiKey || '',
+        geminiApiKey: settings.geminiApiKey || '',
+        ingTags: settings.ingTags || [],
+        methodTags: settings.methodTags || []
+      }),
+      setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'users'), {
+        users: settings.users || []
+      })
+    ]);
   } catch (e) {
     console.error('Settings sync error:', e);
   }
@@ -2627,7 +2644,8 @@ function exportSettings() {
     apiKey: settings.apiKey || '',
     geminiApiKey: settings.geminiApiKey || '',
     ingTags: settings.ingTags || [],
-    methodTags: settings.methodTags || []
+    methodTags: settings.methodTags || [],
+    users: settings.users || []
   };
   const blob = new Blob([JSON.stringify(exportable, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2651,6 +2669,7 @@ function importSettings(input) {
       if (data.geminiApiKey) settings.geminiApiKey = data.geminiApiKey;
       if (data.ingTags?.length) settings.ingTags = data.ingTags;
       if (data.methodTags?.length) settings.methodTags = data.methodTags;
+      if (data.users?.length) settings.users = data.users;
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       // Refresh the form fields
       document.getElementById('sApiKey').value = settings.apiKey || '';
