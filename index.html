@@ -1007,9 +1007,12 @@
         <div class="settings-block">
           <div class="settings-section-title">📤 Data</div>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export JSON</button>
-            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFileInput').click()">Import JSON</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export recipes</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFileInput').click()">Import recipes</button>
             <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importJSON(this)">
+            <button class="btn btn-ghost btn-sm" onclick="exportSettings()">Export settings</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importSettingsInput').click()">Import settings</button>
+            <input type="file" id="importSettingsInput" accept=".json" style="display:none" onchange="importSettings(this)">
           </div>
         </div>
       </div>
@@ -2611,6 +2614,52 @@ function importJSON(input) {
       save(); renderGrid();
       toast(`Imported ${added} new recipes`);
     } catch (err) { alert('Invalid JSON file: ' + err.message); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function exportSettings() {
+  const exportable = {
+    firebaseApiKey: settings.firebaseApiKey || '',
+    firebaseProjectId: settings.firebaseProjectId || '',
+    firebaseAppId: settings.firebaseAppId || '',
+    apiKey: settings.apiKey || '',
+    geminiApiKey: settings.geminiApiKey || '',
+    ingTags: settings.ingTags || [],
+    methodTags: settings.methodTags || []
+  };
+  const blob = new Blob([JSON.stringify(exportable, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipe-settings_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('Settings exported');
+}
+
+function importSettings(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.firebaseApiKey) settings.firebaseApiKey = data.firebaseApiKey;
+      if (data.firebaseProjectId) settings.firebaseProjectId = data.firebaseProjectId;
+      if (data.firebaseAppId) settings.firebaseAppId = data.firebaseAppId;
+      if (data.apiKey) settings.apiKey = data.apiKey;
+      if (data.geminiApiKey) settings.geminiApiKey = data.geminiApiKey;
+      if (data.ingTags?.length) settings.ingTags = data.ingTags;
+      if (data.methodTags?.length) settings.methodTags = data.methodTags;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      // Refresh the form fields
+      document.getElementById('sApiKey').value = settings.apiKey || '';
+      document.getElementById('sGeminiKey').value = settings.geminiApiKey || '';
+      document.getElementById('sFirebaseApiKey').value = settings.firebaseApiKey || '';
+      document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
+      document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
+      toast('Settings imported — tap Connect Firebase to sync');
+    } catch (err) { alert('Invalid settings file: ' + err.message); }
   };
   reader.readAsText(file);
   input.value = '';
