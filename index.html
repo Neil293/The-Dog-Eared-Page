@@ -1197,6 +1197,7 @@ let settings = {};
 let activeTab = 'all';
 let activeIngFilters = new Set();
 let activeMethFilters = new Set();
+let activeUserFilters = new Set();
 let sortRecent = false;
 let recipeScale = 1;
 let editingId = null;
@@ -1437,7 +1438,13 @@ function toggleRecentFilter() {
 function openCustomFilter() {
   const allIng = settings.ingTags || [];
   const allMeth = settings.methodTags || [];
+  const allUsers = (settings.users || []).filter(u => recipes.some(r => r.addedBy === u.id));
   let html = '';
+  if (allUsers.length > 1) {
+    html += `<div class="form-label" style="margin-bottom:0.4rem">Added by</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">` +
+      allUsers.map(u => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-family:var(--font-hand);font-size:0.9rem"><input type="checkbox" value="${esc(u.id)}" data-type="user" ${activeUserFilters.has(u.id)?'checked':''}> <span class="tag-pill" style="background:var(--paper-darker)">${esc(u.name)}</span></label>`).join('') + `</div>`;
+  }
   if (allIng.length) {
     html += `<div class="form-label" style="margin-bottom:0.4rem">Ingredient</div>`;
     html += `<div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">` +
@@ -1459,11 +1466,13 @@ function clearCustomFilter() {
 function applyCustomFilter() {
   activeIngFilters.clear();
   activeMethFilters.clear();
+  activeUserFilters.clear();
   document.querySelectorAll('#customFilterContent input[type="checkbox"]:checked').forEach(cb => {
     if (cb.dataset.type === 'ing') activeIngFilters.add(cb.value);
-    else activeMethFilters.add(cb.value);
+    else if (cb.dataset.type === 'meth') activeMethFilters.add(cb.value);
+    else if (cb.dataset.type === 'user') activeUserFilters.add(cb.value);
   });
-  const total = activeIngFilters.size + activeMethFilters.size;
+  const total = activeIngFilters.size + activeMethFilters.size + activeUserFilters.size;
   document.getElementById('btnCustomFilter').classList.toggle('active', total > 0);
   closeModal('customFilterModal');
   renderGrid();
@@ -1489,6 +1498,7 @@ function renderGrid() {
       const has = (r.methodTags||[]).some(t => activeMethFilters.has(t));
       if (!has) return false;
     }
+    if (activeUserFilters.size && !activeUserFilters.has(r.addedBy)) return false;
     return true;
   });
 
@@ -1607,7 +1617,8 @@ function viewRecipe(id) {
   const sourceLabels = { manual: '✏️ Manual', ai: '📷 AI import', url: '🔗 Web URL', paste: '📋 Pasted text', book: '📚 Book', magazine: '📰 Magazine', other: '📝 Other' };
   const srcLabel = sourceLabels[r.source] || (r.source ? esc(r.source) : '✏️ Manual');
   const dateLabel = r.dateAdded ? new Date(r.dateAdded).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  body += `<div class="recipe-meta-footer"><span>Origin: ${srcLabel}</span>${dateLabel ? `<span>Added: ${dateLabel}</span>` : ''}</div>`;
+  const byLabel = r.addedByName ? esc(r.addedByName) : '';
+  body += `<div class="recipe-meta-footer"><span>Origin: ${srcLabel}</span>${byLabel ? `<span>By: ${byLabel}</span>` : ''}${dateLabel ? `<span>Added: ${dateLabel}</span>` : ''}</div>`;
 
   document.getElementById('viewBody').innerHTML = body;
   openModal('viewModal');
@@ -1902,6 +1913,8 @@ function saveRecipe() {
     favs: editingId ? (recipes.find(x=>x.id===editingId)||{}).favs || {} : {},
     imageData: window._pendingImageData || null,
     dateAdded: editingId ? (recipes.find(x=>x.id===editingId)||{}).dateAdded || Date.now() : Date.now(),
+    addedBy: editingId ? (recipes.find(x=>x.id===editingId)||{}).addedBy || localUser?.id || null : localUser?.id || null,
+    addedByName: editingId ? (recipes.find(x=>x.id===editingId)||{}).addedByName || localUser?.name || '' : localUser?.name || '',
     updatedAt: Date.now()
   };
 
