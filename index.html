@@ -321,7 +321,7 @@
   .ingredients-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
   .ingredient-row {
     display: grid;
-    grid-template-columns: 1fr 90px 40px;
+    grid-template-columns: 1fr 90px auto;
     gap: 0.4rem;
     align-items: center;
   }
@@ -331,12 +331,19 @@
     border-radius: 4px; transition: color 0.2s;
   }
   .btn-remove-ing:hover { color: var(--accent); }
+  .row-actions { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .btn-move {
+    background: none; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 0.6rem; padding: 2px 5px;
+    border-radius: 3px; line-height: 1; transition: color 0.2s;
+  }
+  .btn-move:hover { color: var(--accent); }
 
   /* Steps list */
   .steps-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
   .step-row {
     display: grid;
-    grid-template-columns: 24px 1fr 40px;
+    grid-template-columns: 24px 1fr auto;
     gap: 0.5rem;
     align-items: flex-start;
   }
@@ -1322,6 +1329,22 @@ function buildTagChecks() {
   ).join('');
 }
 
+function _rowActions(cls) {
+  return `<div class="row-actions">
+    <button class="btn-move" onclick="moveRow(this,'up')" title="Move up">▲</button>
+    <button class="btn-move" onclick="moveRow(this,'down')" title="Move down">▼</button>
+    <button class="btn-remove-ing" onclick="this.closest('.${cls}').remove()">✕</button>
+  </div>`;
+}
+
+function moveRow(btn, dir) {
+  const row = btn.closest('.ingredient-row') || btn.closest('.step-row');
+  const sibling = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (dir === 'up') row.parentElement.insertBefore(row, sibling);
+  else row.parentElement.insertBefore(sibling, row);
+}
+
 function addIngredientRow(name='', amount='') {
   const list = document.getElementById('ingredientsList');
   const row = document.createElement('div');
@@ -1329,7 +1352,7 @@ function addIngredientRow(name='', amount='') {
   row.innerHTML = `
     <input type="text" class="form-input" placeholder="Ingredient name" value="${esc(name)}" style="font-size:0.88rem;padding:7px 10px">
     <input type="number" class="form-input" placeholder="grams" value="${amount||''}" min="0" step="0.1" style="font-size:0.88rem;padding:7px 10px">
-    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+    ${_rowActions('ingredient-row')}`;
   list.appendChild(row);
 }
 
@@ -1343,7 +1366,7 @@ function addStepRow(text='', num=null) {
   row.innerHTML = `
     <div class="step-num">${n}</div>
     <textarea class="form-input form-textarea" placeholder="Describe this step…" style="min-height:60px;font-size:0.88rem">${esc(text)}</textarea>
-    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+    ${_rowActions('step-row')}`;
   list.appendChild(row);
 }
 
@@ -1354,7 +1377,7 @@ function addIngredientSection(title = '') {
   row.innerHTML = `
     <input type="text" class="form-input" placeholder="Section heading (e.g. For the sauce)" value="${esc(title)}" data-section="true"
       style="grid-column:1/3;font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--ink-light)">
-    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+    ${_rowActions('ingredient-row')}`;
   list.appendChild(row);
 }
 
@@ -1365,7 +1388,7 @@ function addStepSection(title = '') {
   row.innerHTML = `
     <input type="text" class="form-input" placeholder="Section heading (e.g. Make the sauce)" value="${esc(title)}" data-section="true"
       style="grid-column:1/3;font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--ink-light)">
-    <button class="btn-remove-ing" onclick="this.parentElement.remove()">✕</button>`;
+    ${_rowActions('step-row')}`;
   list.appendChild(row);
 }
 
@@ -1597,6 +1620,29 @@ async function fetchViaProxy(url) {
   throw new Error('Could not fetch the page — try pasting the recipe text instead (📋 button).');
 }
 
+function extractOgImage(html, baseUrl) {
+  const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+           || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+           || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+           || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+  if (!m) return null;
+  const src = m[1];
+  if (src.startsWith('http')) return src;
+  try { return new URL(src, baseUrl).href; } catch { return null; }
+}
+
+async function fetchAndCompressUrl(url) {
+  let blob;
+  for (const attempt of [
+    () => fetch(url, { redirect: 'follow' }),
+    () => fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`),
+  ]) {
+    try { const r = await attempt(); if (r.ok) { blob = await r.blob(); break; } } catch {}
+  }
+  if (!blob) return null;
+  return compressImage(blob);
+}
+
 async function analyseUrl() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return;
@@ -1613,6 +1659,7 @@ async function analyseUrl() {
 
   try {
     const html = await fetchViaProxy(url);
+    const ogImgUrl = extractOgImage(html, url);
 
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -1661,6 +1708,14 @@ ${text}`;
     const raw = await callAI(prompt);
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     parsed.origin = url;
+
+    if (ogImgUrl) {
+      statusEl.innerHTML = `<div class="ai-status"><span class="spinner"></span> Fetching recipe photo…</div>`;
+      try {
+        const dataUrl = await fetchAndCompressUrl(ogImgUrl);
+        if (dataUrl) parsed.imageData = dataUrl;
+      } catch {}
+    }
 
     statusEl.innerHTML = `<div class="ai-status" style="color:var(--green)">✓ Recipe extracted! Opening editor…</div>`;
     setTimeout(() => { closeModal('urlModal'); openAddRecipe(parsed); }, 800);
