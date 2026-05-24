@@ -92,7 +92,6 @@
   .sync-dot.ok { background: var(--green-light); }
   .sync-dot.syncing { background: var(--accent-light); animation: pulse 1s infinite; }
   .sync-dot.err { background: #c0392b; }
-  .sync-dot.warn { background: #f39c12; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
   /* ─── NAV TABS ─── */
@@ -702,7 +701,7 @@
 <header>
   <div class="header-title">🍳 <span>The</span> Recipe Book</div>
   <div class="header-actions">
-    <span id="syncDotWrap" title="Firebase sync" onclick="openSettings()" style="cursor:pointer">
+    <span id="syncDotWrap" title="Firebase sync">
       <span class="sync-dot" id="syncDot"></span>
     </span>
     <button class="icon-btn" id="installBtn" title="Install app" onclick="installApp()" style="display:none">⬇</button>
@@ -998,16 +997,9 @@
             <label class="form-label">App ID</label>
             <input type="text" class="form-input" id="sFirebaseAppId" placeholder="1:123456:web:abc123">
           </div>
-          <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database and Authentication → Sign-in method → Google. Paste config values here and connect, then sign in to sync recipes across devices.</p>
+          <p class="settings-hint">Create a Firebase project at console.firebase.google.com. Enable Firestore Database. Paste your config values above and connect — sync starts automatically on all devices using the same config. Update your Firestore rules to: <code style="font-size:0.8rem">match /shared/{id}/{d=**} { allow read, write: if true; }</code></p>
           <button class="btn btn-primary btn-sm" style="margin-top:0.5rem" onclick="initFirebase()">Connect Firebase</button>
           <span id="firebaseStatus" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-left:0.5rem"></span>
-          <div id="authSection" style="display:none;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--paper-darker)">
-            <div id="authStatus" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--ink-faint);margin-bottom:0.5rem"></div>
-            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-              <button class="btn btn-primary btn-sm" id="btnSignIn" onclick="signInWithGoogle()" style="display:none">🔑 Sign in with Google</button>
-              <button class="btn btn-ghost btn-sm" id="btnSignOut" onclick="signOutFirebase()" style="display:none">Sign out</button>
-            </div>
-          </div>
         </div>
 
         <div class="settings-block">
@@ -1205,8 +1197,7 @@ let editingId = null;
 let viewingId = null;
 let photoBase64 = null;
 let firebaseDb = null;
-let firebaseAuth = null;
-let currentUser = null;
+let firebaseSyncId = null;
 let _unsubSnapshot = null;
 let localUser = null;
 
@@ -1661,9 +1652,9 @@ function deleteRecipe() {
   const id = viewingId;
   recipes = recipes.filter(x => x.id !== id);
   localStorage.setItem(DB_KEY, JSON.stringify(recipes));
-  if (firebaseDb && currentUser) {
+  if (firebaseDb && firebaseSyncId) {
     const { db, doc, deleteDoc } = firebaseDb;
-    deleteDoc(doc(db, 'users', currentUser.uid, 'recipes', id)).catch(console.error);
+    deleteDoc(doc(db, 'shared', firebaseSyncId, 'recipes', id)).catch(console.error);
   }
   renderGrid();
   closeModal('viewModal');
@@ -2332,7 +2323,6 @@ function openSettings() {
   document.getElementById('usersTabBtn').style.display = localUser?.isAdmin ? '' : 'none';
   openSettingsTab('general', document.querySelector('.settings-tab-btn'));
   updateFirebaseStatus();
-  updateAuthUI();
   openModal('settingsModal');
 }
 
@@ -2436,6 +2426,12 @@ function saveSettings() {
 // ═══════════════════════════════════════════════════════
 //  FIREBASE
 // ═══════════════════════════════════════════════════════
+async function deriveSyncId(apiKey, projectId) {
+  const raw = apiKey + ':' + projectId;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+}
+
 async function initFirebase(silent = false) {
   if (silent && firebaseDb) return;
   const apiKey = settings.firebaseApiKey || document.getElementById('sFirebaseApiKey')?.value.trim();
@@ -2451,40 +2447,17 @@ async function initFirebase(silent = false) {
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     const { getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 
-    const config = { apiKey, projectId, authDomain: `${projectId}.firebaseapp.com`, appId: appId || '1:000000:web:000000' };
+    const config = { apiKey, projectId, appId: appId || '1:000000:web:000000' };
     const existing = getApps();
     const app = existing.length ? existing[0] : initializeApp(config);
     const db = getFirestore(app);
-    const auth = getAuth(app);
     firebaseDb = { db, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot };
-    firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut };
+    firebaseSyncId = await deriveSyncId(apiKey, projectId);
 
-    setSyncDot('warn');
     if (!silent) toast('Firebase connected ✓');
     updateFirebaseStatus();
-    updateAuthUI();
-
-    onAuthStateChanged(auth, async user => {
-      currentUser = user;
-      updateFirebaseStatus();
-      updateAuthUI();
-      if (user) {
-        await setupFirestoreForUser(user);
-      } else {
-        if (_unsubSnapshot) { _unsubSnapshot(); _unsubSnapshot = null; }
-        setSyncDot('warn');
-      }
-    });
-
-    // Finalise any pending redirect sign-in (mobile browsers)
-    getRedirectResult(auth).then(result => {
-      if (result?.user) toast('Signed in as ' + (result.user.displayName || result.user.email));
-    }).catch(e => {
-      if (e.code !== 'auth/no-auth-event') toast('Sign-in error: ' + e.code);
-      console.error('getRedirectResult error:', e);
-    });
+    await setupFirestore();
 
   } catch (e) {
     setSyncDot('err');
@@ -2493,14 +2466,14 @@ async function initFirebase(silent = false) {
   }
 }
 
-async function setupFirestoreForUser(user) {
-  if (!firebaseDb) return;
+async function setupFirestore() {
+  if (!firebaseDb || !firebaseSyncId) return;
   const { db, collection, getDocs, setDoc, doc, onSnapshot } = firebaseDb;
-  const userCol = () => collection(db, 'users', user.uid, 'recipes');
+  const syncCol = () => collection(db, 'shared', firebaseSyncId, 'recipes');
   setSyncDot('syncing');
   try {
     if (_unsubSnapshot) { _unsubSnapshot(); _unsubSnapshot = null; }
-    const snap = await getDocs(userCol());
+    const snap = await getDocs(syncCol());
     if (!snap.empty) {
       const fbRecipes = [];
       snap.forEach(d => fbRecipes.push(d.data()));
@@ -2511,18 +2484,18 @@ async function setupFirestoreForUser(user) {
       renderGrid();
     } else {
       for (const r of recipes) {
-        await setDoc(doc(db, 'users', user.uid, 'recipes', r.id), r);
+        await setDoc(doc(db, 'shared', firebaseSyncId, 'recipes', r.id), r);
       }
     }
     setSyncDot('ok');
-    _unsubSnapshot = onSnapshot(userCol(), snap => {
+    _unsubSnapshot = onSnapshot(syncCol(), snap => {
       const fbRecipes = [];
       snap.forEach(d => fbRecipes.push(d.data()));
       recipes = fbRecipes;
       localStorage.setItem(DB_KEY, JSON.stringify(recipes));
       renderGrid();
     });
-    await loadSettingsFromFirebase(user);
+    await loadSettingsFromFirebase();
   } catch (e) {
     setSyncDot('err');
     console.error('Firestore setup error:', e);
@@ -2530,15 +2503,15 @@ async function setupFirestoreForUser(user) {
 }
 
 async function syncToFirebase(recipe) {
-  if (!firebaseDb || !currentUser) return;
+  if (!firebaseDb || !firebaseSyncId) return;
   const { db, setDoc, doc } = firebaseDb;
   setSyncDot('syncing');
   try {
     if (recipe) {
-      await setDoc(doc(db, 'users', currentUser.uid, 'recipes', recipe.id), recipe);
+      await setDoc(doc(db, 'shared', firebaseSyncId, 'recipes', recipe.id), recipe);
     } else {
       for (const r of recipes) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'recipes', r.id), r);
+        await setDoc(doc(db, 'shared', firebaseSyncId, 'recipes', r.id), r);
       }
     }
     setSyncDot('ok');
@@ -2551,18 +2524,13 @@ async function syncToFirebase(recipe) {
 function updateFirebaseStatus() {
   const statusEl = document.getElementById('firebaseStatus');
   if (!statusEl) return;
-  if (!firebaseDb) { statusEl.textContent = ''; return; }
-  if (currentUser) {
-    statusEl.textContent = `✓ Syncing as ${currentUser.displayName || currentUser.email}`;
-  } else {
-    statusEl.textContent = '✓ Connected · sign in below to sync';
-  }
+  statusEl.textContent = firebaseDb ? '✓ Connected' : '';
 }
 
-async function loadSettingsFromFirebase(user) {
-  if (!firebaseDb) return;
+async function loadSettingsFromFirebase() {
+  if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, getDoc, setDoc } = firebaseDb;
-  const ref = doc(db, 'users', user.uid, 'meta', 'settings');
+  const ref = doc(db, 'shared', firebaseSyncId, 'meta', 'settings');
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
@@ -2573,7 +2541,6 @@ async function loadSettingsFromFirebase(user) {
       if (remote.methodTags?.length) settings.methodTags = remote.methodTags;
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       renderFilters();
-      toast('Settings loaded from your account ✓');
     } else {
       await setDoc(ref, {
         apiKey: settings.apiKey || '',
@@ -2588,10 +2555,10 @@ async function loadSettingsFromFirebase(user) {
 }
 
 async function syncSettingsToFirebase() {
-  if (!firebaseDb || !currentUser) return;
+  if (!firebaseDb || !firebaseSyncId) return;
   const { db, doc, setDoc } = firebaseDb;
   try {
-    await setDoc(doc(db, 'users', currentUser.uid, 'meta', 'settings'), {
+    await setDoc(doc(db, 'shared', firebaseSyncId, 'meta', 'settings'), {
       apiKey: settings.apiKey || '',
       geminiApiKey: settings.geminiApiKey || '',
       ingTags: settings.ingTags || [],
@@ -2602,51 +2569,10 @@ async function syncSettingsToFirebase() {
   }
 }
 
-async function signInWithGoogle() {
-  if (!firebaseAuth) return;
-  const { auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect } = firebaseAuth;
-  const provider = new GoogleAuthProvider();
-  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  try {
-    if (isMobile) {
-      await signInWithRedirect(auth, provider);
-    } else {
-      await signInWithPopup(auth, provider);
-    }
-  } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') toast('Sign-in failed: ' + esc(e.message));
-  }
-}
-
-async function signOutFirebase() {
-  if (!firebaseAuth) return;
-  await firebaseAuth.signOut(firebaseAuth.auth);
-  toast('Signed out');
-}
-
-function updateAuthUI() {
-  const authSection = document.getElementById('authSection');
-  if (!authSection) return;
-  if (!firebaseAuth) { authSection.style.display = 'none'; return; }
-  authSection.style.display = '';
-  const btnSignIn = document.getElementById('btnSignIn');
-  const btnSignOut = document.getElementById('btnSignOut');
-  const authStatus = document.getElementById('authStatus');
-  if (currentUser) {
-    authStatus.textContent = `Signed in as ${currentUser.displayName || currentUser.email}`;
-    btnSignIn.style.display = 'none';
-    btnSignOut.style.display = '';
-  } else {
-    authStatus.textContent = 'Not signed in — sign in to sync across devices';
-    btnSignIn.style.display = '';
-    btnSignOut.style.display = 'none';
-  }
-}
-
 function setSyncDot(state) {
   const dot = document.getElementById('syncDot');
   dot.className = 'sync-dot ' + state;
-  const titles = { ok: 'Firebase: synced ✓', syncing: 'Firebase: syncing…', err: 'Firebase: sync error', warn: 'Firebase: tap to sign in with Google' };
+  const titles = { ok: 'Firebase: synced ✓', syncing: 'Firebase: syncing…', err: 'Firebase: sync error' };
   const wrap = document.getElementById('syncDotWrap');
   if (wrap) wrap.title = titles[state] || 'Firebase sync';
 }
