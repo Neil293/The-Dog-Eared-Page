@@ -2453,7 +2453,7 @@ async function initFirebase(silent = false) {
     const { getFirestore, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 
-    const config = { apiKey, projectId, appId: appId || '1:000000:web:000000' };
+    const config = { apiKey, projectId, authDomain: `${projectId}.firebaseapp.com`, appId: appId || '1:000000:web:000000' };
     const existing = getApps();
     const app = existing.length ? existing[0] : initializeApp(config);
     const db = getFirestore(app);
