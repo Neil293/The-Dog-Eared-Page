@@ -226,6 +226,22 @@
     flex-wrap: wrap;
   }
 
+  .scale-pill {
+    font-family: var(--font-hand); font-size: 0.85rem;
+    padding: 3px 12px; border-radius: 20px;
+    border: 1.5px solid var(--accent-light); background: var(--paper);
+    color: var(--accent); cursor: pointer; transition: background 0.15s;
+  }
+  .scale-pill:hover { background: var(--accent-light); }
+  .scale-option-btn {
+    font-family: var(--font-hand); font-size: 1.1rem;
+    padding: 10px 0; border-radius: 8px; min-width: 64px;
+    border: 1.5px solid var(--paper-darker); background: var(--paper);
+    color: var(--ink); cursor: pointer; transition: all 0.15s;
+  }
+  .scale-option-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .scale-option-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
   /* ─── RECIPE GRID ─── */
   .recipe-grid {
     display: grid;
@@ -1044,6 +1060,8 @@
           <div class="settings-section-title">🔑 My Password</div>
           <button class="btn btn-ghost btn-sm" onclick="showChangePasswordModal(false)">Change my password</button>
         </div>
+      </div>
+
       <!-- Account tab -->
       <div class="settings-tab-panel" id="stab-account">
         <div class="settings-block">
@@ -1054,7 +1072,6 @@
             <button class="btn btn-ghost btn-sm" style="color:#c0392b;border-color:#c0392b" onclick="doLogout()">Sign out</button>
           </div>
         </div>
-      </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1146,6 +1163,19 @@
   </div>
 </div>
 
+<!-- Scale modal -->
+<div class="modal-overlay" id="scaleModal">
+  <div class="modal" style="max-width:300px">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display);font-size:1.1rem">⚖ Scale Recipe</h2>
+      <button class="icon-btn" onclick="closeModal('scaleModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="scaleOptions" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1168,6 +1198,7 @@ let activeTab = 'all';
 let activeIngFilters = new Set();
 let activeMethFilters = new Set();
 let sortRecent = false;
+let recipeScale = 1;
 let editingId = null;
 let viewingId = null;
 let photoBase64 = null;
@@ -1516,6 +1547,7 @@ function setTab(tab, el) {
 function viewRecipe(id) {
   const r = recipes.find(x => x.id === id);
   if (!r) return;
+  if (id !== viewingId) recipeScale = 1;
   viewingId = id;
 
   const emoji = r.emoji || guessEmoji(r);
@@ -1530,7 +1562,7 @@ function viewRecipe(id) {
   const times = [];
   if (r.prepTime) times.push(`⏱ Prep ${r.prepTime} min`);
   if (r.cookTime) times.push(`🔥 Cook ${r.cookTime} min`);
-  if (r.serves) times.push(`👤 Serves ${r.serves}`);
+  if (r.serves) { const s = Math.round(r.serves * recipeScale); times.push(`👤 Serves ${s}`); }
   document.getElementById('viewTimes').innerHTML = times.map(t=>`<span>${t}</span>`).join('');
 
   const favBtn = document.getElementById('viewFavBtn');
@@ -1542,10 +1574,16 @@ function viewRecipe(id) {
   let body = `<div style="margin-bottom:0.8rem">${allTags}</div>`;
 
   if (r.ingredients && r.ingredients.length) {
-    body += `<div class="recipe-section-title">Ingredients</div>`;
+    const scaleLbl = recipeScale === 0.25 ? '×¼' : recipeScale === 0.5 ? '×½' : `×${recipeScale}`;
+    body += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem">
+      <div class="recipe-section-title" style="margin:0;border:none">Ingredients</div>
+      <button class="scale-pill" onclick="openScaleModal()">${scaleLbl}</button>
+    </div>`;
     body += r.ingredients.filter(i => i.name || i.section).map(i => {
       if (i.section) return `<div style="font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--accent);padding:0.5rem 0 0.15rem;margin-top:0.25rem;border-bottom:1px dashed var(--paper-darker)">${esc(i.section)}</div>`;
-      const amt = i.amount ? `<span class="ing-amount">${i.amount}g</span>` : '';
+      const raw = i.amount ? i.amount * recipeScale : null;
+      const scaled = raw ? (raw % 1 === 0 ? raw : Math.round(raw * 10) / 10) : null;
+      const amt = scaled ? `<span class="ing-amount">${scaled}g</span>` : '';
       return `<div class="ingredient-view-row"><span class="ing-name">${esc(i.name)}</span>${amt}</div>`;
     }).join('');
   }
@@ -1572,6 +1610,21 @@ function viewRecipe(id) {
 
   document.getElementById('viewBody').innerHTML = body;
   openModal('viewModal');
+}
+
+function openScaleModal() {
+  const scales = [0.25, 0.5, 1, 2, 3, 4];
+  const labels = { 0.25: '×¼', 0.5: '×½', 1: '×1', 2: '×2', 3: '×3', 4: '×4' };
+  document.getElementById('scaleOptions').innerHTML = scales.map(s =>
+    `<button class="scale-option-btn${recipeScale===s?' active':''}" onclick="setScale(${s})">${labels[s]}</button>`
+  ).join('');
+  openModal('scaleModal');
+}
+
+function setScale(factor) {
+  recipeScale = factor;
+  closeModal('scaleModal');
+  viewRecipe(viewingId);
 }
 
 function isFav(r) {
