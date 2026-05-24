@@ -98,8 +98,7 @@
   nav {
     background: var(--ink-light);
     display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
+    justify-content: space-between;
   }
   nav::-webkit-scrollbar { display: none; }
   .nav-tab {
@@ -134,7 +133,8 @@
     transition: all 0.2s;
     opacity: 0.75;
   }
-  #btnRecentFilter { margin-left: auto; }
+  .nav-tabs-group { display: flex; }
+  .nav-btns-group { display: flex; }
   .nav-btn:hover { opacity: 1; }
   .nav-btn.active { color: #fff; opacity: 1; border-bottom-color: var(--accent-light); }
 
@@ -672,10 +672,14 @@
 
 <!-- ═══════════════════ NAV TABS ═══════════════════ -->
 <nav id="navTabs">
-  <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
-  <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
-  <button class="nav-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
-  <button class="nav-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
+  <div class="nav-tabs-group">
+    <button class="nav-tab active" data-tab="all" onclick="setTab('all',this)">All Recipes</button>
+    <button class="nav-tab" data-tab="favourites" onclick="setTab('favourites',this)">★ Favourites</button>
+  </div>
+  <div class="nav-btns-group">
+    <button class="nav-btn" id="btnRecentFilter" title="Sort by recently added" onclick="toggleRecentFilter()">🕐 Recent</button>
+    <button class="nav-btn" id="btnCustomFilter" title="Custom tag filter" onclick="openCustomFilter()">🏷 Filter</button>
+  </div>
 </nav>
 
 <!-- ═══════════════════ MAIN ═══════════════════ -->
