@@ -92,6 +92,7 @@
   .sync-dot.ok { background: var(--green-light); }
   .sync-dot.syncing { background: var(--accent-light); animation: pulse 1s infinite; }
   .sync-dot.err { background: #c0392b; }
+  .sync-dot.warn { background: #f39c12; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
   /* ─── NAV TABS ─── */
@@ -701,7 +702,7 @@
 <header>
   <div class="header-title">🍳 <span>The</span> Recipe Book</div>
   <div class="header-actions">
-    <span title="Firebase sync status">
+    <span id="syncDotWrap" title="Firebase sync" onclick="openSettings()" style="cursor:pointer">
       <span class="sync-dot" id="syncDot"></span>
     </span>
     <button class="icon-btn" id="installBtn" title="Install app" onclick="installApp()" style="display:none">⬇</button>
@@ -1242,9 +1243,10 @@ async function init() {
 
   renderFilters();
 
-  // Reconnect Firebase regardless of local login state
   if (settings.firebaseApiKey && settings.firebaseProjectId) {
     initFirebase(true);
+  } else {
+    document.getElementById('syncDotWrap').style.display = 'none';
   }
 
   if (!localUser) { renderGrid(); showLoginModal(); return; }
@@ -2435,6 +2437,7 @@ function saveSettings() {
 //  FIREBASE
 // ═══════════════════════════════════════════════════════
 async function initFirebase(silent = false) {
+  if (silent && firebaseDb) return;
   const apiKey = settings.firebaseApiKey || document.getElementById('sFirebaseApiKey')?.value.trim();
   const projectId = settings.firebaseProjectId || document.getElementById('sFirebaseProjectId')?.value.trim();
   const appId = settings.firebaseAppId || document.getElementById('sFirebaseAppId')?.value.trim();
@@ -2458,18 +2461,20 @@ async function initFirebase(silent = false) {
     firebaseDb = { db, collection, getDocs, getDoc, setDoc, doc, deleteDoc, onSnapshot };
     firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut };
 
-    setSyncDot('');
-    if (!silent) { document.getElementById('firebaseStatus').textContent = '✓ Connected'; toast('Firebase connected ✓'); }
+    setSyncDot('warn');
+    if (!silent) toast('Firebase connected ✓');
+    updateFirebaseStatus();
     updateAuthUI();
 
     onAuthStateChanged(auth, async user => {
       currentUser = user;
+      updateFirebaseStatus();
       updateAuthUI();
       if (user) {
         await setupFirestoreForUser(user);
       } else {
         if (_unsubSnapshot) { _unsubSnapshot(); _unsubSnapshot = null; }
-        setSyncDot('');
+        setSyncDot('warn');
       }
     });
 
@@ -2537,7 +2542,13 @@ async function syncToFirebase(recipe) {
 
 function updateFirebaseStatus() {
   const statusEl = document.getElementById('firebaseStatus');
-  if (statusEl) statusEl.textContent = firebaseDb ? '✓ Connected' : '';
+  if (!statusEl) return;
+  if (!firebaseDb) { statusEl.textContent = ''; return; }
+  if (currentUser) {
+    statusEl.textContent = `✓ Syncing as ${currentUser.displayName || currentUser.email}`;
+  } else {
+    statusEl.textContent = '✓ Connected · sign in below to sync';
+  }
 }
 
 async function loadSettingsFromFirebase(user) {
@@ -2621,6 +2632,9 @@ function updateAuthUI() {
 function setSyncDot(state) {
   const dot = document.getElementById('syncDot');
   dot.className = 'sync-dot ' + state;
+  const titles = { ok: 'Firebase: synced ✓', syncing: 'Firebase: syncing…', err: 'Firebase: sync error', warn: 'Firebase: tap to sign in with Google' };
+  const wrap = document.getElementById('syncDotWrap');
+  if (wrap) wrap.title = titles[state] || 'Firebase sync';
 }
 
 // ═══════════════════════════════════════════════════════
