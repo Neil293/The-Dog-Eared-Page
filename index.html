@@ -659,13 +659,14 @@
   }
 
   .section-header {
-    display: flex; align-items: center; justify-content: flex-end;
     margin-bottom: 1rem;
   }
   .section-count {
     font-family: var(--font-hand);
     font-size: 0.9rem;
     color: var(--ink-faint);
+    display: block;
+    text-align: right;
   }
   .img-search-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem;
@@ -690,9 +691,11 @@
     </span>
     <button class="icon-btn" id="installBtn" title="Install app" onclick="installApp()" style="display:none">⬇</button>
     <button class="icon-btn" title="Add recipe" onclick="openAddRecipe()">＋</button>
-    <button class="icon-btn" title="Photo import" onclick="openPhotoImport()">📷</button>
-    <button class="icon-btn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
-    <button class="icon-btn" title="Import from URL" onclick="openUrlImport()">🔗</button>
+    <button class="icon-btn" id="photoImportBtn" title="Photo import" onclick="openPhotoImport()">📷</button>
+    <button class="icon-btn" id="pasteImportBtn" title="Paste recipe text" onclick="openPasteImport()">📋</button>
+    <button class="icon-btn" id="urlImportBtn" title="Import from URL" onclick="openUrlImport()">🔗</button>
+    <span id="currentUserLabel" style="font-family:var(--font-hand);font-size:0.85rem;color:var(--paper-dark);padding:0 4px;opacity:0.85"></span>
+    <button class="icon-btn" title="Log out" onclick="doLogout()">👤</button>
     <button class="icon-btn" title="Settings" onclick="openSettings()">⚙</button>
   </div>
 </header>
@@ -948,6 +951,7 @@
       <div class="settings-tabs">
         <button class="settings-tab-btn active" onclick="openSettingsTab('general',this)">General</button>
         <button class="settings-tab-btn" onclick="openSettingsTab('tags',this)">🏷 Tags</button>
+        <button class="settings-tab-btn" id="usersTabBtn" onclick="openSettingsTab('users',this)">👥 Users</button>
       </div>
 
       <!-- General tab -->
@@ -1020,6 +1024,29 @@
           </div>
         </div>
       </div>
+
+      <!-- Users tab -->
+      <div class="settings-tab-panel" id="stab-users">
+        <div class="settings-block">
+          <div class="settings-section-title">👥 Users</div>
+          <div id="userManager"></div>
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--paper-darker)">
+            <div class="settings-section-title" style="font-size:0.9rem">Add User</div>
+            <div class="form-group"><label class="form-label">Name</label><input type="text" class="form-input" id="newUserName" placeholder="Name"></div>
+            <div class="form-group"><label class="form-label">Password</label><input type="password" class="form-input" id="newUserPwd" placeholder="Password"></div>
+            <div class="form-group">
+              <label class="form-label" style="display:flex;align-items:center;gap:0.4rem">
+                <input type="checkbox" id="newUserAI"> Allow AI import
+              </label>
+            </div>
+            <button class="btn btn-accent btn-sm" onclick="addUser()">Add User</button>
+          </div>
+        </div>
+        <div class="settings-block">
+          <div class="settings-section-title">🔑 My Password</div>
+          <button class="btn btn-ghost btn-sm" onclick="showChangePasswordModal(false)">Change my password</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Close</button>
@@ -1064,6 +1091,52 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="loginModal" style="z-index:300">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display)">🍳 The Recipe Book</h2>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Who's cooking?</label>
+        <select class="form-input" id="loginUsername"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-input" id="loginPassword" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="loginError" style="color:var(--accent);font-family:var(--font-hand);font-size:0.9rem;min-height:1.2em"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-accent" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="changePasswordModal" style="z-index:310">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-header">
+      <h2 style="font-family:var(--font-display)">Change Password</h2>
+    </div>
+    <div class="modal-body">
+      <p id="changePwdNote" style="font-family:var(--font-hand);font-size:0.9rem;color:var(--ink-faint);margin-bottom:1rem"></p>
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input type="password" class="form-input" id="newPwd1" placeholder="New password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input type="password" class="form-input" id="newPwd2" placeholder="Confirm password" onkeydown="if(event.key==='Enter')doChangePassword()">
+      </div>
+      <div id="changePwdError" style="color:var(--accent);font-family:var(--font-hand);font-size:0.9rem;min-height:1.2em"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="changePwdCancelBtn" onclick="closeModal('changePasswordModal')">Skip</button>
+      <button class="btn btn-accent" onclick="doChangePassword()">Change Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1093,6 +1166,7 @@ let firebaseDb = null;
 let firebaseAuth = null;
 let currentUser = null;
 let _unsubSnapshot = null;
+let localUser = null;
 
 const DEFAULT_ING_TAGS = ['Beef','Chicken','Pork','Lamb','Seafood','Fish','Vegetarian','Vegan','Pasta','Rice','Eggs','Dairy'];
 const DEFAULT_METHOD_TAGS = ['Soup','Slow Cook','Bake','Roast','Fry','Grill','Stir-fry','Steam','Salad','Sauce','Dessert','Breakfast','BBQ'];
@@ -1100,7 +1174,7 @@ const DEFAULT_METHOD_TAGS = ['Soup','Slow Cook','Bake','Roast','Fry','Grill','St
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-function init() {
+async function init() {
   const raw = localStorage.getItem(DB_KEY);
   recipes = raw ? JSON.parse(raw) : getSampleRecipes();
   const sRaw = localStorage.getItem(SETTINGS_KEY);
@@ -1116,8 +1190,21 @@ function init() {
   if (!settings.ingTags) settings.ingTags = [...DEFAULT_ING_TAGS];
   if (!settings.methodTags) settings.methodTags = [...DEFAULT_METHOD_TAGS];
 
+  await initUsers();
+  const neilId = (settings.users.find(u => u.isAdmin) || settings.users[0])?.id;
+  let didMigrate = false;
+  recipes.forEach(r => { if (r.fav && !r.favs) { r.favs = { [neilId]: true }; didMigrate = true; } delete r.fav; });
+  if (didMigrate) localStorage.setItem(DB_KEY, JSON.stringify(recipes));
+
+  const savedId = localStorage.getItem('recipebook_localuser');
+  localUser = settings.users.find(u => u.id === savedId) || null;
+
   renderFilters();
+
+  if (!localUser) { renderGrid(); showLoginModal(); return; }
+  applyPermissions();
   renderGrid();
+  if (localUser.mustChangePassword) showChangePasswordModal(true);
 
   // Try reconnect Firebase
   if (settings.firebaseApiKey && settings.firebaseProjectId) {
@@ -1128,6 +1215,157 @@ function init() {
 function save() {
   localStorage.setItem(DB_KEY, JSON.stringify(recipes));
   syncToFirebase();
+}
+
+// ═══════════════════════════════════════════════════════
+//  USER MANAGEMENT
+// ═══════════════════════════════════════════════════════
+async function hashPassword(pwd) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function initUsers() {
+  if (!settings.users || !settings.users.length) {
+    const hash = await hashPassword('neil');
+    settings.users = [{
+      id: 'user_neil',
+      name: 'Neil',
+      passwordHash: hash,
+      isAdmin: true,
+      mustChangePassword: true,
+      permissions: { aiImport: true }
+    }];
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+}
+
+function applyPermissions() {
+  const canAI = localUser?.permissions?.aiImport !== false;
+  ['photoImportBtn','pasteImportBtn','urlImportBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canAI ? '' : 'none';
+  });
+  document.getElementById('currentUserLabel').textContent = localUser?.name || '';
+}
+
+function showLoginModal() {
+  const sel = document.getElementById('loginUsername');
+  sel.innerHTML = (settings.users||[]).map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('');
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginModal').classList.add('open');
+}
+
+async function doLogin() {
+  const userId = document.getElementById('loginUsername').value;
+  const pwd = document.getElementById('loginPassword').value;
+  const user = (settings.users||[]).find(u => u.id === userId);
+  if (!user) return;
+  const hash = await hashPassword(pwd);
+  if (hash !== user.passwordHash) {
+    document.getElementById('loginError').textContent = 'Incorrect password';
+    return;
+  }
+  localUser = user;
+  localStorage.setItem('recipebook_localuser', user.id);
+  document.getElementById('loginModal').classList.remove('open');
+  applyPermissions();
+  renderGrid();
+  if (user.mustChangePassword) showChangePasswordModal(true);
+}
+
+function doLogout() {
+  if (!confirm('Sign out?')) return;
+  localUser = null;
+  localStorage.removeItem('recipebook_localuser');
+  showLoginModal();
+}
+
+function showChangePasswordModal(isForced) {
+  document.getElementById('changePwdNote').textContent = isForced
+    ? 'Your password is set to the default. Please change it now.'
+    : 'Enter a new password for your account.';
+  document.getElementById('changePwdCancelBtn').style.display = isForced ? 'none' : '';
+  document.getElementById('newPwd1').value = '';
+  document.getElementById('newPwd2').value = '';
+  document.getElementById('changePwdError').textContent = '';
+  document.getElementById('changePasswordModal').classList.add('open');
+}
+
+async function doChangePassword() {
+  const p1 = document.getElementById('newPwd1').value;
+  const p2 = document.getElementById('newPwd2').value;
+  if (!p1) { document.getElementById('changePwdError').textContent = 'Enter a password'; return; }
+  if (p1 !== p2) { document.getElementById('changePwdError').textContent = 'Passwords do not match'; return; }
+  const hash = await hashPassword(p1);
+  const u = settings.users.find(u => u.id === localUser.id);
+  if (u) { u.passwordHash = hash; u.mustChangePassword = false; }
+  localUser = u;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+  closeModal('changePasswordModal');
+  toast('Password changed ✓');
+}
+
+function renderUserManager() {
+  const container = document.getElementById('userManager');
+  container.innerHTML = (settings.users||[]).map(u => `
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:6px 0;border-bottom:1px solid var(--paper-darker)">
+      <span style="flex:1;font-family:var(--font-hand)">${esc(u.name)}${u.isAdmin?' 👑':''}</span>
+      <label style="font-family:var(--font-hand);font-size:0.82rem;display:flex;align-items:center;gap:0.25rem">
+        <input type="checkbox" ${u.permissions?.aiImport!==false?'checked':''} onchange="updateUserPerm('${u.id}','aiImport',this.checked)"> AI
+      </label>
+      <button class="tag-manage-btn" onclick="adminResetPassword('${u.id}')">Reset pwd</button>
+      ${!u.isAdmin ? `<button class="tag-manage-btn del" onclick="deleteUser('${u.id}')">✕</button>` : ''}
+    </div>`).join('');
+}
+
+async function addUser() {
+  const name = document.getElementById('newUserName').value.trim();
+  const pwd = document.getElementById('newUserPwd').value;
+  const aiImport = document.getElementById('newUserAI').checked;
+  if (!name || !pwd) { toast('Name and password required'); return; }
+  if (settings.users.find(u => u.name.toLowerCase() === name.toLowerCase())) { toast('User already exists'); return; }
+  const hash = await hashPassword(pwd);
+  settings.users.push({ id: 'user_' + Date.now(), name, passwordHash: hash, isAdmin: false, mustChangePassword: false, permissions: { aiImport } });
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+  document.getElementById('newUserName').value = '';
+  document.getElementById('newUserPwd').value = '';
+  renderUserManager();
+  toast(`User "${name}" added`);
+}
+
+function updateUserPerm(userId, perm, val) {
+  const u = settings.users.find(u => u.id === userId);
+  if (!u) return;
+  if (!u.permissions) u.permissions = {};
+  u.permissions[perm] = val;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+}
+
+async function adminResetPassword(userId) {
+  const pwd = prompt('Set new password for user:');
+  if (!pwd) return;
+  const u = settings.users.find(u => u.id === userId);
+  if (!u) return;
+  u.passwordHash = await hashPassword(pwd);
+  u.mustChangePassword = true;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+  toast('Password reset ✓');
+}
+
+function deleteUser(userId) {
+  const u = settings.users.find(u => u.id === userId);
+  if (!u || !confirm(`Delete user "${u.name}"?`)) return;
+  settings.users = settings.users.filter(u => u.id !== userId);
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  syncSettingsToFirebase();
+  renderUserManager();
+  toast(`Deleted user "${u.name}"`);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1198,7 +1436,7 @@ function renderGrid() {
   const grid = document.getElementById('recipeGrid');
   const q = document.getElementById('searchInput').value.toLowerCase();
   let list = recipes.filter(r => {
-    if (activeTab === 'favourites' && !r.fav) return false;
+    if (activeTab === 'favourites' && !isFav(r)) return false;
     if (q) {
       const hay = (r.name + ' ' + (r.ingTags||[]).join(' ') + ' ' + (r.methodTags||[]).join(' ') + ' ' + (r.ingredients||[]).map(i=>i.name||'').join(' ')).toLowerCase();
       if (!hay.includes(q)) return false;
@@ -1234,7 +1472,7 @@ function renderGrid() {
     return `<div class="recipe-card" onclick="viewRecipe('${r.id}')">
       ${imgHtml}
       <div class="card-body">
-        <div class="card-title">${esc(r.name)}${r.fav?' ★':''}</div>
+        <div class="card-title">${esc(r.name)}${isFav(r)?' ★':''}</div>
         <div class="card-times">${[prep,cook].filter(Boolean).join(' · ')}</div>
         <div class="card-tags">${allTags}</div>
       </div>
@@ -1288,7 +1526,7 @@ function viewRecipe(id) {
   document.getElementById('viewTimes').innerHTML = times.map(t=>`<span>${t}</span>`).join('');
 
   const favBtn = document.getElementById('viewFavBtn');
-  favBtn.textContent = r.fav ? '★ Unfavourite' : '☆ Favourite';
+  favBtn.textContent = isFav(r) ? '★ Unfavourite' : '☆ Favourite';
 
   // Body
   const allTags = [...(r.ingTags||[]).map(t=>`<span class="tag-pill">${t}</span>`), ...(r.methodTags||[]).map(t=>`<span class="tag-pill method">${t}</span>`)].join('');
@@ -1328,14 +1566,19 @@ function viewRecipe(id) {
   openModal('viewModal');
 }
 
+function isFav(r) {
+  return localUser ? (r.favs?.[localUser.id] === true) : false;
+}
+
 function toggleFav() {
   const r = recipes.find(x => x.id === viewingId);
-  if (!r) return;
-  r.fav = !r.fav;
+  if (!r || !localUser) return;
+  if (!r.favs) r.favs = {};
+  r.favs[localUser.id] = !r.favs[localUser.id];
   save();
   renderGrid();
-  document.getElementById('viewFavBtn').textContent = r.fav ? '★ Unfavourite' : '☆ Favourite';
-  toast(r.fav ? '★ Added to favourites' : 'Removed from favourites');
+  document.getElementById('viewFavBtn').textContent = isFav(r) ? '★ Unfavourite' : '☆ Favourite';
+  toast(isFav(r) ? '★ Added to favourites' : 'Removed from favourites');
 }
 
 function deleteRecipe() {
@@ -1594,7 +1837,7 @@ function saveRecipe() {
     ingTags, methodTags, ingredients, steps,
     notes: document.getElementById('fNotes').value.trim(),
     source: document.getElementById('fSource').value || 'manual',
-    fav: editingId ? (recipes.find(x=>x.id===editingId)||{}).fav : false,
+    favs: editingId ? (recipes.find(x=>x.id===editingId)||{}).favs || {} : {},
     imageData: window._pendingImageData || null,
     dateAdded: editingId ? (recipes.find(x=>x.id===editingId)||{}).dateAdded || Date.now() : Date.now(),
     updatedAt: Date.now()
@@ -2009,6 +2252,7 @@ function openSettings() {
   document.getElementById('sFirebaseApiKey').value = settings.firebaseApiKey || '';
   document.getElementById('sFirebaseProjectId').value = settings.firebaseProjectId || '';
   document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
+  document.getElementById('usersTabBtn').style.display = localUser?.isAdmin ? '' : 'none';
   openSettingsTab('general', document.querySelector('.settings-tab-btn'));
   updateFirebaseStatus();
   updateAuthUI();
@@ -2022,6 +2266,7 @@ function openSettingsTab(tab, btn) {
   btn.classList.add('active');
   document.getElementById('settingsSaveBtn').style.display = tab === 'general' ? '' : 'none';
   if (tab === 'tags') renderTagManager();
+  if (tab === 'users') renderUserManager();
 }
 
 function renderTagManager() {
