@@ -1253,9 +1253,9 @@ async function init() {
   if (localUser.mustChangePassword) showChangePasswordModal(true);
 }
 
-function save() {
+function save(recipe) {
   localStorage.setItem(DB_KEY, JSON.stringify(recipes));
-  syncToFirebase();
+  syncToFirebase(recipe);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1648,7 +1648,7 @@ function toggleFav() {
   if (!r || !localUser) return;
   if (!r.favs) r.favs = {};
   r.favs[localUser.id] = !r.favs[localUser.id];
-  save();
+  save(r);
   renderGrid();
   document.getElementById('viewFavBtn').textContent = isFav(r) ? '★ Unfavourite' : '☆ Favourite';
   toast(isFav(r) ? '★ Added to favourites' : 'Removed from favourites');
@@ -1925,7 +1925,7 @@ function saveRecipe() {
     recipes.unshift(r);
   }
 
-  save();
+  save(r);
   renderGrid();
   closeModal('editModal');
   toast(editingId ? 'Recipe updated ✓' : 'Recipe saved ✓');
@@ -2516,23 +2516,22 @@ async function setupFirestoreForUser(user) {
   }
 }
 
-async function syncToFirebase() {
+async function syncToFirebase(recipe) {
   if (!firebaseDb || !currentUser) return;
+  const { db, setDoc, doc } = firebaseDb;
   setSyncDot('syncing');
   try {
-    await pushAllToFirebase();
+    if (recipe) {
+      await setDoc(doc(db, 'users', currentUser.uid, 'recipes', recipe.id), recipe);
+    } else {
+      for (const r of recipes) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'recipes', r.id), r);
+      }
+    }
     setSyncDot('ok');
   } catch (e) {
     setSyncDot('err');
     console.error('Sync error:', e);
-  }
-}
-
-async function pushAllToFirebase() {
-  if (!firebaseDb || !currentUser) return;
-  const { db, setDoc, doc } = firebaseDb;
-  for (const r of recipes) {
-    await setDoc(doc(db, 'users', currentUser.uid, 'recipes', r.id), r);
   }
 }
 
