@@ -1006,6 +1006,12 @@
         </div>
 
         <div class="settings-block">
+          <div class="settings-section-title">⚖ Measurement Units</div>
+          <p class="settings-hint">Select which units to show alongside ingredient amounts. Volume units (ml, cup, tbsp, tsp) are approximate for liquids only.</p>
+          <div id="unitCheckboxes" style="display:flex;flex-wrap:wrap;gap:0.5rem 1.2rem;margin-top:0.4rem"></div>
+        </div>
+
+        <div class="settings-block">
           <div class="settings-section-title">📤 Data</div>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export recipes</button>
@@ -1239,6 +1245,15 @@ let localUser = null;
 
 const DEFAULT_ING_TAGS = ['Beef','Chicken','Pork','Lamb','Seafood','Fish','Vegetarian','Vegan','Pasta','Rice','Eggs','Dairy'];
 const DEFAULT_METHOD_TAGS = ['Soup','Slow Cook','Bake','Roast','Fry','Grill','Stir-fry','Steam','Salad','Sauce','Dessert','Breakfast','BBQ'];
+const UNITS = [
+  { id: 'g',    label: 'g',    factor: 1,            note: 'grams' },
+  { id: 'oz',   label: 'oz',   factor: 0.035274,     note: 'ounces' },
+  { id: 'lb',   label: 'lb',   factor: 0.002205,     note: 'pounds' },
+  { id: 'ml',   label: 'ml',   factor: 1,            note: 'millilitres (≈ for liquids)' },
+  { id: 'cup',  label: 'cup',  factor: 1 / 236.588,  note: 'cups (≈ for liquids)' },
+  { id: 'tbsp', label: 'tbsp', factor: 1 / 14.787,   note: 'tablespoons (≈ for liquids)' },
+  { id: 'tsp',  label: 'tsp',  factor: 1 / 4.929,    note: 'teaspoons (≈ for liquids)' },
+];
 
 // ═══════════════════════════════════════════════════════
 //  INIT
@@ -1258,6 +1273,7 @@ async function init() {
   };
   if (!settings.ingTags) settings.ingTags = [...DEFAULT_ING_TAGS];
   if (!settings.methodTags) settings.methodTags = [...DEFAULT_METHOD_TAGS];
+  if (!settings.displayUnits) settings.displayUnits = ['g'];
 
   await initUsers();
   const neilId = (settings.users.find(u => u.isAdmin) || settings.users[0])?.id;
@@ -1622,8 +1638,7 @@ function viewRecipe(id) {
     body += r.ingredients.filter(i => i.name || i.section).map(i => {
       if (i.section) return `<div style="font-family:var(--font-hand);font-weight:600;font-size:0.9rem;color:var(--accent);padding:0.5rem 0 0.15rem;margin-top:0.25rem;border-bottom:1px dashed var(--paper-darker)">${esc(i.section)}</div>`;
       const raw = i.amount ? i.amount * recipeScale : null;
-      const scaled = raw ? (raw % 1 === 0 ? raw : Math.round(raw * 10) / 10) : null;
-      const amt = scaled ? `<span class="ing-amount">${scaled}g</span>` : '';
+      const amt = raw ? `<span class="ing-amount">${formatAmount(raw)}</span>` : '';
       return `<div class="ingredient-view-row"><span class="ing-name">${esc(i.name)}</span>${amt}</div>`;
     }).join('');
   }
@@ -2358,6 +2373,14 @@ function openSettings() {
   document.getElementById('sFirebaseAppId').value = settings.firebaseAppId || '';
   document.getElementById('usersTabBtn').style.display = localUser?.isAdmin ? '' : 'none';
   document.getElementById('showQRBtn').style.display = localUser?.isAdmin ? '' : 'none';
+  const selected = new Set(settings.displayUnits || ['g']);
+  document.getElementById('unitCheckboxes').innerHTML = UNITS.map(u =>
+    `<label style="display:flex;align-items:center;gap:0.35rem;font-family:var(--font-hand);font-size:0.95rem;cursor:pointer">
+      <input type="checkbox" data-unit="${u.id}" ${selected.has(u.id) ? 'checked' : ''}
+        style="accent-color:var(--accent);width:16px;height:16px">
+      <span><strong>${u.label}</strong> <span style="color:var(--ink-faint);font-size:0.8rem">${u.note}</span></span>
+    </label>`
+  ).join('');
   openSettingsTab('general', document.querySelector('.settings-tab-btn'));
   updateFirebaseStatus();
   openModal('settingsModal');
@@ -2454,10 +2477,28 @@ function saveSettings() {
   settings.firebaseApiKey = document.getElementById('sFirebaseApiKey').value.trim();
   settings.firebaseProjectId = document.getElementById('sFirebaseProjectId').value.trim();
   settings.firebaseAppId = document.getElementById('sFirebaseAppId').value.trim();
+  settings.displayUnits = [...document.querySelectorAll('#unitCheckboxes input[data-unit]:checked')].map(cb => cb.dataset.unit);
+  if (!settings.displayUnits.length) settings.displayUnits = ['g'];
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   syncSettingsToFirebase();
   closeModal('settingsModal');
   toast('Settings saved ✓');
+}
+
+function formatAmount(grams) {
+  if (!grams) return '';
+  const units = settings.displayUnits || ['g'];
+  return units.map(uid => {
+    const u = UNITS.find(x => x.id === uid);
+    if (!u) return '';
+    const val = grams * u.factor;
+    let rounded;
+    if (val >= 100) rounded = Math.round(val);
+    else if (val >= 10) rounded = Math.round(val * 10) / 10;
+    else if (val >= 1) rounded = Math.round(val * 100) / 100;
+    else rounded = Math.round(val * 1000) / 1000;
+    return `${rounded}${u.label}`;
+  }).filter(Boolean).join(' / ');
 }
 
 // ═══════════════════════════════════════════════════════
