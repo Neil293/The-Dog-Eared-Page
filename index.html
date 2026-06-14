@@ -1012,6 +1012,12 @@
         </div>
 
         <div class="settings-block">
+          <div class="settings-section-title">📲 App</div>
+          <p class="settings-hint">Install this app to your home screen for quick access and offline use.</p>
+          <button class="btn btn-ghost btn-sm" style="margin-top:0.5rem" onclick="installApp()">📲 Install App</button>
+        </div>
+
+        <div class="settings-block">
           <div class="settings-section-title">📤 Data</div>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
             <button class="btn btn-ghost btn-sm" onclick="exportJSON()">Export recipes</button>
@@ -3035,10 +3041,22 @@ window.addEventListener('appinstalled', () => {
 });
 
 async function installApp() {
-  if (!_installPrompt) return;
-  _installPrompt.prompt();
-  const { outcome } = await _installPrompt.userChoice;
-  if (outcome === 'accepted') _installPrompt = null;
+  if (_installPrompt) {
+    _installPrompt.prompt();
+    const { outcome } = await _installPrompt.userChoice;
+    if (outcome === 'accepted') _installPrompt = null;
+    return;
+  }
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    toast('App is already installed ✓');
+    return;
+  }
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS) {
+    alert('To install: tap the Share button, then "Add to Home Screen".');
+  } else {
+    alert('Install not available yet. Try using the browser menu and look for "Install app" or "Add to Home Screen".');
+  }
 }
 
 if ('serviceWorker' in navigator) {
